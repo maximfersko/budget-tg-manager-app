@@ -1,0 +1,5 @@
+aiogram==3.26.0
+python-dotenv
+sqlalchemy
+asyncpg
+alembic
