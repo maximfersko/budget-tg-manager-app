@@ -5,6 +5,7 @@ from core.logger import logger
 from core.config import BOT_TOKEN
 from tg_bot.handlers.commands import router as commands_router
 from tg_bot.handlers.incomes import router as incomes_router
+from tg_bot.middlewares.db_middleware import DBMiddleware
 from database.engine import create_db
 
 async def main():
@@ -12,6 +13,9 @@ async def main():
 
     bot = Bot(token=BOT_TOKEN)
     dp = Dispatcher()
+
+    dp.message.middleware(DBMiddleware())
+    dp.callback_query.middleware(DBMiddleware())
 
     dp.include_router(commands_router)
     dp.include_router(incomes_router)
