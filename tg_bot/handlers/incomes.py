@@ -1,14 +1,16 @@
+import os
+
 from aiogram import Router, F, Bot
 from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.types import Message, CallbackQuery
-from tg_bot.keyboards.inline import get_banks_keyboard
+
 from core.logger import logger
-from services.csv_tink_parser_service import TinkoffBankCSVParser
-from services.csv_alfa_parser_service import AlfaBankCSVParser
-from database.engine import async_session
 from database.repo import DBRepository
+from services.csv_alfa_parser_service import AlfaBankCSVParser
+from services.csv_tink_parser_service import TinkoffBankCSVParser
+from tg_bot.keyboards.inline import get_banks_keyboard
 
 router = Router(name="incomes_handler")
 
@@ -45,7 +47,7 @@ async def process_bank_selection(callback_query: CallbackQuery, state: FSMContex
 
 
 @router.message(IncomeStates.waiting_for_document, F.document)
-async def process_income_file(message: Message, state: FSMContext, bot: Bot):
+async def process_income_file(message: Message, state: FSMContext, bot: Bot, repo: DBRepository):
     logger.info(message.model_dump())
 
     if not message.document.mime_type == "text/csv":
@@ -80,20 +82,17 @@ async def process_income_file(message: Message, state: FSMContext, bot: Bot):
 
     result_csv = parser.parse_file(file_path)
 
-    async with async_session() as session:
-        repo = DBRepository(session)
-        
-        await repo.add_user(
-            tg_id=message.from_user.id,
-            first_name=message.from_user.first_name,
-            last_name=message.from_user.last_name,
-            username=message.from_user.username
-        )
-        
-        await repo.add_operations_batch(message.from_user.id, result_csv)
+    await repo.add_user(
+        tg_id=message.from_user.id,
+        first_name=message.from_user.first_name,
+        last_name=message.from_user.last_name,
+        username=message.from_user.username
+    )
 
-        await session.commit()
+    await repo.add_operations_batch(message.from_user.id, result_csv)
 
     await message.answer(f"Parsed {len(result_csv)} operations!")
+
+    os.remove(file_path)
     
     await state.clear()

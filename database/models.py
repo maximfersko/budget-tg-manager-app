@@ -1,6 +1,8 @@
 from sqlalchemy import Column, Integer, String, BigInteger, Float, Boolean, DateTime, ForeignKey, func
 from sqlalchemy.orm import relationship
+
 from database.engine import Base
+
 
 class User(Base):
     __tablename__ = "users"
@@ -14,6 +16,9 @@ class User(Base):
     operations = relationship("Operation", back_populates="user", cascade="all, delete-orphan")
     categories = relationship("Category", back_populates="user", cascade="all, delete-orphan")
 
+    def __repr__(self):
+        return f"<User(username={self.username})>, {self.first_name}, {self.last_name}>"
+
 class Category(Base):
     __tablename__ = "categories"
     
@@ -26,6 +31,9 @@ class Category(Base):
     
     user = relationship("User", back_populates="categories")
     operations = relationship("Operation", back_populates="category")
+
+    def __repr__(self):
+        return f"<Category(id={self.id}), {self.name}, {self.is_income}, {self.emoji}>"
 
 class Operation(Base):
     __tablename__ = "operations"
@@ -49,3 +57,6 @@ class Operation(Base):
     
     user = relationship("User", back_populates="operations")
     category = relationship("Category", back_populates="operations")
+
+    def __repr__(self):
+        return f"Operation(id={self.id}, user_id={self.user_id}, category_id={self.category_id}, raw_category={self.raw_category}, amount={self.amount}, currency={self.currency}, date={self.date}, created_at={self.created_at}, description={self.description})"

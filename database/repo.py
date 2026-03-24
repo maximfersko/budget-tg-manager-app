@@ -1,7 +1,10 @@
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
-from database.models import User, Operation, Category
 from typing import List, Dict, Optional
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from core.logger import logger
+from database.models import User, Operation, Category
 
 
 class DBRepository:
@@ -30,12 +33,41 @@ class DBRepository:
 
     async def add_operations_batch(self, user_id: int, operations: List[Dict]):
         objs = []
+
+        unique_cat_data = {(op["category"], op["is_income"]) for op in operations}
+        cat_names = {name for name, _ in unique_cat_data}
+
+        stmt = select(Category).where(
+            Category.name.in_(cat_names),
+            (Category.user_id == user_id) | (Category.user_id == None)
+        )
+        result = await self.session.execute(stmt)
+        existing_categories = result.scalars().all()
+
+        category_map = {
+            (c.name, c.is_income): c.id for c in existing_categories
+        }
+
+        new_cats = []
+        for name, is_income in unique_cat_data:
+            if (name, is_income) not in category_map:
+                new_cat = Category(name=name, is_income=is_income, user_id=user_id)
+                self.session.add(new_cat)
+                new_cats.append(new_cat)
+
+        if new_cats:
+            await self.session.flush()
+            for nc in new_cats:
+                category_map[(nc.name, nc.is_income)] = nc.id
+
         for op in operations:
+            cat_id = category_map.get((op["category"], op["is_income"]))
             objs.append(
                 Operation(
                     user_id=user_id,
                     date=op["date"],
                     amount=op["amount"],
+                    category_id=cat_id,
                     raw_category=op["category"],
                     description=op["description"],
                     is_income=op["is_income"]
@@ -63,3 +95,26 @@ class DBRepository:
         )
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
+
+    async def get_user_stats(self, user_id: int, start_date, end_date) -> Dict[str, float]:
+        from sqlalchemy import func
+
+        stmt = select(
+            Operation.is_income,
+            func.sum(Operation.amount).label("total")
+        ).where(
+            Operation.user_id == user_id,
+            Operation.date >= start_date,
+            Operation.date <= end_date
+        ).group_by(Operation.is_income)
+
+        result = await self.session.execute(stmt)
+
+        stats = {"income": 0.0, "expense": 0.0}
+        for is_income, total_sum in result.all():
+            if is_income:
+                stats["income"] = total_sum
+            else:
+                stats["expense"] = total_sum
+
+        return stats
