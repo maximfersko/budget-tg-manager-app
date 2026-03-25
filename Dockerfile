@@ -30,15 +30,9 @@ ENV LANG=ru_RU.UTF-8 \
     PYTHONUNBUFFERED=1 \
     PATH="/opt/venv/bin:$PATH"
 
-RUN groupadd -r appgroup && useradd -r -g appgroup appuser
-
 WORKDIR /app
 
 COPY --from=builder /opt/venv /opt/venv
-COPY --chown=appuser:appgroup . .
-
-RUN python -m compileall .
-
-USER appuser
+COPY . .
 
 CMD ["python", "bot.py"]

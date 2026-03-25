@@ -3,3 +3,7 @@ python-dotenv
 sqlalchemy
 asyncpg
 alembic
+pandas
+scikit-learn
+numpy
+statsmodels

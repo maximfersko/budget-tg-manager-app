@@ -3,7 +3,6 @@ from typing import List, Dict, Optional
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from core.logger import logger
 from database.models import User, Operation, Category
 
 
@@ -12,9 +11,22 @@ class DBRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
 
+    async def get_user_by_tg_id(self, tg_id: int) -> Optional[User]:
+        stmt = select(User).where(User.tg_id == tg_id)
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def get_user_operations(self, tg_id: int) -> List[Operation]:
+        stmt = select(Operation).where(
+            Operation.user_id == tg_id
+        ).order_by(Operation.date.desc())
+
+        result = await self.session.execute(stmt)
+        return result.scalars().all()
+
     async def add_user(self, tg_id: int, first_name: str, last_name: Optional[str] = None,
                        username: Optional[str] = None) -> User:
-        user = await self.session.get(User, tg_id)
+        user = await self.get_user_by_tg_id(tg_id)
         if not user:
             user = User(
                 tg_id=tg_id,
@@ -31,7 +43,11 @@ class DBRepository:
         await self.session.commit()
         return user
 
-    async def add_operations_batch(self, user_id: int, operations: List[Dict]):
+    async def add_operations_batch(self, tg_id: int, operations: List[Dict], bank_name: str):
+        user = await self.get_user_by_tg_id(tg_id)
+        if not user:
+            raise ValueError(f"User with tg_id {tg_id} not found")
+        
         objs = []
 
         unique_cat_data = {(op["category"], op["is_income"]) for op in operations}
@@ -39,7 +55,7 @@ class DBRepository:
 
         stmt = select(Category).where(
             Category.name.in_(cat_names),
-            (Category.user_id == user_id) | (Category.user_id == None)
+            (Category.user_id == tg_id) | (Category.user_id == None)
         )
         result = await self.session.execute(stmt)
         existing_categories = result.scalars().all()
@@ -51,7 +67,7 @@ class DBRepository:
         new_cats = []
         for name, is_income in unique_cat_data:
             if (name, is_income) not in category_map:
-                new_cat = Category(name=name, is_income=is_income, user_id=user_id)
+                new_cat = Category(name=name, is_income=is_income, user_id=tg_id)
                 self.session.add(new_cat)
                 new_cats.append(new_cat)
 
@@ -64,12 +80,13 @@ class DBRepository:
             cat_id = category_map.get((op["category"], op["is_income"]))
             objs.append(
                 Operation(
-                    user_id=user_id,
+                    user_id=tg_id,
                     date=op["date"],
                     amount=op["amount"],
                     category_id=cat_id,
                     raw_category=op["category"],
                     description=op["description"],
+                    bank_name=bank_name,
                     is_income=op["is_income"]
                 )
             )
@@ -88,22 +105,22 @@ class DBRepository:
         await self.session.commit()
         return cat
 
-    async def get_user_categories(self, user_id: int, is_income: bool) -> List[Category]:
+    async def get_user_categories(self, tg_id: int, is_income: bool) -> List[Category]:
         stmt = select(Category).where(
             Category.is_income == is_income,
-            (Category.user_id.is_(None)) | (Category.user_id == user_id)
+            (Category.user_id.is_(None)) | (Category.user_id == tg_id)
         )
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
 
-    async def get_user_stats(self, user_id: int, start_date, end_date) -> Dict[str, float]:
+    async def get_user_stats(self, tg_id: int, start_date, end_date) -> Dict[str, float]:
         from sqlalchemy import func
 
         stmt = select(
             Operation.is_income,
             func.sum(Operation.amount).label("total")
         ).where(
-            Operation.user_id == user_id,
+            Operation.user_id == tg_id,
             Operation.date >= start_date,
             Operation.date <= end_date
         ).group_by(Operation.is_income)
@@ -118,3 +135,45 @@ class DBRepository:
                 stats["expense"] = total_sum
 
         return stats
+
+    async def get_user_operations_with_categories(self, tg_id: int) -> List[tuple]:
+        stmt = select(Operation, Category).join(
+            Category, Operation.category_id == Category.id, isouter=True
+        ).where(
+            Operation.user_id == tg_id
+        ).order_by(Operation.date.desc())
+
+        result = await self.session.execute(stmt)
+        return result.all()
+
+    async def get_user_operations(self, tg_id: int) -> List[Operation]:
+        stmt = select(Operation).where(
+            Operation.user_id == tg_id
+        ).order_by(Operation.date.desc())
+
+        result = await self.session.execute(stmt)
+        return result.scalars().all()
+
+    async def get_category_breakdown(self, tg_id: int, start_date, end_date) -> List[tuple]:
+        from sqlalchemy import func
+
+        stmt = select(
+            Category.name,
+            Operation.is_income,
+            func.sum(Operation.amount).label("total"),
+            func.count(Operation.id).label("count"),
+            func.avg(Operation.amount).label("avg_amount")
+        ).join(
+            Category, Operation.category_id == Category.id, isouter=True
+        ).where(
+            Operation.user_id == tg_id,
+            Operation.date >= start_date,
+            Operation.date <= end_date
+        ).group_by(
+            Category.name, Operation.is_income
+        ).order_by(
+            Operation.is_income, func.sum(Operation.amount).desc()
+        )
+
+        result = await self.session.execute(stmt)
+        return result.all()

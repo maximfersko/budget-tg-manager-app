@@ -24,7 +24,6 @@ class IncomeStates(StatesGroup):
 async def incomes(message: Message, state: FSMContext):
     logger.info(message.model_dump())
 
-
     await message.answer(
         text="Pick your bank",
         reply_markup=get_banks_keyboard()
@@ -36,13 +35,13 @@ async def incomes(message: Message, state: FSMContext):
 @router.callback_query(IncomeStates.waiting_for_bank, F.data.startswith("bank_"))
 async def process_bank_selection(callback_query: CallbackQuery, state: FSMContext):
     bank_code = callback_query.data.split("_")[1]
-    
+
     await state.update_data(bank=bank_code)
-    
+
     await callback_query.message.edit_text(
         text=" send to file CSV"
     )
-    
+
     await state.set_state(IncomeStates.waiting_for_document)
 
 
@@ -66,7 +65,6 @@ async def process_income_file(message: Message, state: FSMContext, bot: Bot, rep
     bank_code = user_data.get("bank")
     logger.info(f"Bank code: {bank_code}")
 
-
     if bank_code == "tinkoff":
         parser = TinkoffBankCSVParser()
     elif bank_code == "alfa":
@@ -89,10 +87,10 @@ async def process_income_file(message: Message, state: FSMContext, bot: Bot, rep
         username=message.from_user.username
     )
 
-    await repo.add_operations_batch(message.from_user.id, result_csv)
+    await repo.add_operations_batch(message.from_user.id, result_csv, bank_code)
 
     await message.answer(f"Parsed {len(result_csv)} operations!")
 
     os.remove(file_path)
-    
+
     await state.clear()
