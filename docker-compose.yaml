@@ -7,6 +7,7 @@ services:
     restart: on-failure
     depends_on:
       - db
+      - redis
     env_file:
       - .env
     ports:
@@ -29,5 +30,29 @@ services:
     volumes:
       - pg_data:/var/lib/postgresql/data
 
+  redis:
+    image: redis:7-alpine
+    container_name: bot_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  rabbitmq:
+    image: rabbitmq:management-alpine
+    container_name: rabbitmq
+    restart: always
+    environment:
+      - RABBITMQ_DEFAULT_USER=admin
+      - RABBITMQ_DEFAULT_PASS=password
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+
 volumes:
   pg_data:
+  redis_data:
+  rabbitmq_data:

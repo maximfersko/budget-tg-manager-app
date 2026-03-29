@@ -35,8 +35,7 @@ class StatisticsService:
             for op in operations
         ])
 
-        salary = float(df[df['raw_category'] == 'Зарплата'][float('amount') > 0.0].sum())
-
+        salary = df[(df['raw_category'] == 'Зарплата') & (df['amount'] > 0.0)]['amount'].sum()
 
         logger.info(f"df {df.head(10).to_string()}")
 

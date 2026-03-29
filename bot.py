@@ -3,6 +3,7 @@ from aiogram import Bot, Dispatcher
 
 from core.logger import logger
 from core.config import BOT_TOKEN
+from database.redis_client import redis_client
 from tg_bot.handlers.commands import router as commands_router
 from tg_bot.handlers.incomes import router as incomes_router
 from tg_bot.handlers.statistics import router as statistics_router
@@ -12,6 +13,7 @@ from database.engine import create_db
 
 async def main():
     await create_db()
+    await redis_client.connect()
 
     bot = Bot(token=BOT_TOKEN)
     dp = Dispatcher()
@@ -27,7 +29,10 @@ async def main():
 
     logger.info("Bot starting... ")
 
-    await dp.start_polling(bot)
+    try:
+        await dp.start_polling(bot)
+    finally:
+        await redis_client.disconnect()
 
 
 if __name__ == '__main__':
