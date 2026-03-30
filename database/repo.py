@@ -48,9 +48,38 @@ class DBRepository:
         if not user:
             raise ValueError(f"User with tg_id {tg_id} not found")
         
+        if not operations:
+            return {'added': 0, 'duplicates': 0}
+        
+        dates = [op["date"] for op in operations]
+        min_date = min(dates)
+        max_date = max(dates)
+        
+        stmt = select(Operation).where(
+            Operation.user_id == tg_id,
+            Operation.date >= min_date,
+            Operation.date <= max_date,
+            Operation.bank_name == bank_name
+        )
+        result = await self.session.execute(stmt)
+        existing_ops = result.scalars().all()
+        
+        existing_keys = {
+            (op.date, float(op.amount), op.raw_category)
+            for op in existing_ops
+        }
+        
+        unique_operations = []
+        for op in operations:
+            key = (op["date"], float(op["amount"]), op["category"])
+            if key not in existing_keys:
+                unique_operations.append(op)
+        
+        if not unique_operations:
+            return {'added': 0, 'duplicates': len(operations)}
+        
         objs = []
-
-        unique_cat_data = {(op["category"], op["is_income"]) for op in operations}
+        unique_cat_data = {(op["category"], op["is_income"]) for op in unique_operations}
         cat_names = {name for name, _ in unique_cat_data}
 
         stmt = select(Category).where(
@@ -76,7 +105,7 @@ class DBRepository:
             for nc in new_cats:
                 category_map[(nc.name, nc.is_income)] = nc.id
 
-        for op in operations:
+        for op in unique_operations:
             cat_id = category_map.get((op["category"], op["is_income"]))
             objs.append(
                 Operation(
@@ -92,6 +121,11 @@ class DBRepository:
             )
         self.session.add_all(objs)
         await self.session.commit()
+        
+        return {
+            'added': len(objs),
+            'duplicates': len(operations) - len(objs)
+        }
 
     async def add_category(self, name: str, is_income: bool, user_id: Optional[int] = None,
                            emoji: Optional[str] = None) -> Category:

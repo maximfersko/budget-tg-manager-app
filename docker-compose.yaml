@@ -51,6 +51,49 @@ services:
       - "15672:15672"
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  celery_worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: celery_worker
+    command: celery -A workers.tasks worker --loglevel=info --concurrency=2
+    restart: on-failure
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      db:
+        condition: service_started
+    env_file:
+      - .env
+    volumes:
+      - .:/app
+    environment:
+      - PYTHONUNBUFFERED=1
+
+  flower:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: flower
+    command: celery -A workers.tasks flower --port=5555
+    restart: on-failure
+    depends_on:
+      - rabbitmq
+      - redis
+    env_file:
+      - .env
+    ports:
+      - "5555:5555"
+    environment:
+      - PYTHONUNBUFFERED=1
 
 volumes:
   pg_data:

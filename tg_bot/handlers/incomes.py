@@ -11,6 +11,8 @@ from database.repo import DBRepository
 from services.csv_alfa_parser_service import AlfaBankCSVParser
 from services.csv_tink_parser_service import TinkoffBankCSVParser
 from tg_bot.keyboards.inline import get_banks_keyboard
+from database.redis_client import redis_client
+from workers.tasks import notifications
 
 router = Router(name="incomes_handler")
 
@@ -30,6 +32,17 @@ async def incomes(message: Message, state: FSMContext):
     )
 
     await state.set_state(IncomeStates.waiting_for_bank)
+
+
+@router.message(Command("test"))
+async def test(message: Message, state: FSMContext):
+    user_dump = message.model_dump()
+
+    task = notifications.task_test.apply_async(args=[message.from_user.id])
+
+    user_dump.get("username")
+    await message.answer("✅ Задача отправлена в очередь Celery")
+
 
 
 @router.callback_query(IncomeStates.waiting_for_bank, F.data.startswith("bank_"))
@@ -54,7 +67,12 @@ async def process_income_file(message: Message, state: FSMContext, bot: Bot, rep
         return
 
     csv_doc = message.document
+    filename = message.document.file_name
+    redis_cli = redis_client.get_client()
+    await redis_cli.append('upload_key', filename)
     file_path = f"/tmp/incomes_{message.from_user.id}.csv"
+    value_red = await redis_cli.get('upload_key')
+    logger.info(f"redis value {value_red}")
 
     await message.answer(f"{message.from_user.first_name} {message.from_user.last_name} your file processing.. ")
 
@@ -87,9 +105,12 @@ async def process_income_file(message: Message, state: FSMContext, bot: Bot, rep
         username=message.from_user.username
     )
 
-    await repo.add_operations_batch(message.from_user.id, result_csv, bank_code)
+    result = await repo.add_operations_batch(message.from_user.id, result_csv, bank_code)
 
-    await message.answer(f"Parsed {len(result_csv)} operations!")
+    await message.answer(
+        f"✅ Добавлено операций: {result['added']}\n"
+        f"⚠️ Дубликатов пропущено: {result['duplicates']}"
+    )
 
     os.remove(file_path)
 
