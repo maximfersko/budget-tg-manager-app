@@ -1,5 +1,4 @@
 import os
-from datetime import datetime
 
 from aiogram import Router, F, Bot
 from aiogram.filters import Command
@@ -7,9 +6,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import StatesGroup, State
 from aiogram.types import Message, CallbackQuery
 
-from core.config import MINIO_BUCKET
 from core.logger import logger
-from database.minio_client import minio_client
 from database.redis_client import redis_client
 from database.repo import DBRepository
 from services.csv_alfa_parser_service import AlfaBankCSVParser
@@ -80,7 +77,6 @@ async def process_income_file(message: Message, state: FSMContext, bot: Bot, rep
     await message.answer(f"{message.from_user.first_name} {message.from_user.last_name} your file processing.. ")
 
     await bot.download(csv_doc, destination=file_path)
-
 
     user_data = await state.get_data()
     logger.info(f"User data: {user_data}")

@@ -1,14 +1,12 @@
-import uuid
 from datetime import datetime, timedelta
 from typing import Optional
 
+import pandas as pd
 from sqlalchemy import BigInteger
 
 from core.logger import logger
-from database.models import Operation, Category
+from database.models import Operation
 from database.repo import DBRepository
-
-import pandas as pd
 
 pd.set_option('display.max_rows', 100)
 pd.set_option('display.max_columns', None)

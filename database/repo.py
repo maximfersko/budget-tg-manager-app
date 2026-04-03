@@ -47,14 +47,14 @@ class DBRepository:
         user = await self.get_user_by_tg_id(tg_id)
         if not user:
             raise ValueError(f"User with tg_id {tg_id} not found")
-        
+
         if not operations:
             return {'added': 0, 'duplicates': 0}
-        
+
         dates = [op["date"] for op in operations]
         min_date = min(dates)
         max_date = max(dates)
-        
+
         stmt = select(Operation).where(
             Operation.user_id == tg_id,
             Operation.date >= min_date,
@@ -63,21 +63,21 @@ class DBRepository:
         )
         result = await self.session.execute(stmt)
         existing_ops = result.scalars().all()
-        
+
         existing_keys = {
             (op.date, float(op.amount), op.raw_category)
             for op in existing_ops
         }
-        
+
         unique_operations = []
         for op in operations:
             key = (op["date"], float(op["amount"]), op["category"])
             if key not in existing_keys:
                 unique_operations.append(op)
-        
+
         if not unique_operations:
             return {'added': 0, 'duplicates': len(operations)}
-        
+
         objs = []
         unique_cat_data = {(op["category"], op["is_income"]) for op in unique_operations}
         cat_names = {name for name, _ in unique_cat_data}
@@ -121,7 +121,7 @@ class DBRepository:
             )
         self.session.add_all(objs)
         await self.session.commit()
-        
+
         return {
             'added': len(objs),
             'duplicates': len(operations) - len(objs)

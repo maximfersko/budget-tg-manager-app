@@ -2,7 +2,6 @@ from aiogram import Router
 from aiogram.filters import Command
 from aiogram.types import Message
 
-from core.logger import logger
 from database.repo import DBRepository
 from services.statistics_service import StatisticsService
 

@@ -2,17 +2,16 @@ import asyncio
 from datetime import datetime
 
 from core.config import MINIO_BUCKET
+from core.logger import logger
 from database.minio_client import minio_client
-from database.models import User
 from database.repo import DBRepository
 from services.csv_alfa_parser_service import AlfaBankCSVParser
 from services.csv_tink_parser_service import TinkoffBankCSVParser
 from workers.tasks import celery_app
-from core.logger import logger
 
 
 @celery_app(bind=True, max_retries=3)
-def process_file(self, file_path: str, user, file_name: str, bank_code: str) -> dict:
+def process_file(self, file_path: str, tg_id: int, file_name: str, bank_code: str) -> dict:
     async def _processing_file():
         logger.info(f'processing file {file_path} from workers')
 

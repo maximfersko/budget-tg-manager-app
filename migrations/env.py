@@ -13,6 +13,7 @@ if config.config_file_name is not None:
 
 import sys
 import os
+
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 
 from core.config import DB_URL
@@ -20,7 +21,6 @@ from database.models import Base
 
 config.set_main_option("sqlalchemy.url", DB_URL)
 target_metadata = Base.metadata
-
 
 
 def run_migrations_offline() -> None:
@@ -44,7 +44,6 @@ def do_run_migrations(connection: Connection) -> None:
 
 
 async def run_async_migrations() -> None:
-
     connectable = async_engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
@@ -59,6 +58,7 @@ async def run_async_migrations() -> None:
 
 def run_migrations_online() -> None:
     asyncio.run(run_async_migrations())
+
 
 if context.is_offline_mode():
     run_migrations_offline()

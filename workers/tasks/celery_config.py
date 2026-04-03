@@ -1,4 +1,5 @@
 from celery import Celery
+
 from core.config import RABBITMQ_URL, REDIS_URL
 
 celery_app = Celery('budget_bot')

@@ -1,6 +1,7 @@
 import csv
 from abc import abstractmethod
 from typing import List, Dict, Optional
+
 from services.parser_service import IParser
 
 

@@ -29,4 +29,3 @@ class AlfaBankCSVParser(BaseCSVParser):
             "description": " ",
             "is_income": amount > 0
         }
-

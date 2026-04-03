@@ -1,6 +1,5 @@
-from workers.tasks.celery_config import celery_app
-
 from workers.tasks import notifications
+from workers.tasks.celery_config import celery_app
 
 celery = celery_app
 

@@ -5,8 +5,8 @@ from aiogram import Bot, Dispatcher
 from core.config import BOT_TOKEN
 from core.logger import logger
 from database.engine import create_db
-from database.redis_client import redis_client
 from database.minio_client import minio_client
+from database.redis_client import redis_client
 from tg_bot.handlers.commands import router as commands_router
 from tg_bot.handlers.incomes import router as incomes_router
 from tg_bot.handlers.statistics import router as statistics_router

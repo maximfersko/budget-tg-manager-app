@@ -9,10 +9,10 @@ from database.repo import DBRepository
 
 class DBMiddleware(BaseMiddleware):
     async def __call__(
-        self,
-        handler: Callable[[Message, Dict[str, Any]], Awaitable[Any]],
-        event: Message | CallbackQuery,
-        data: Dict[str, Any],
+            self,
+            handler: Callable[[Message, Dict[str, Any]], Awaitable[Any]],
+            event: Message | CallbackQuery,
+            data: Dict[str, Any],
     ) -> Any:
         async with async_session() as session:
             data["repo"] = DBRepository(session)
