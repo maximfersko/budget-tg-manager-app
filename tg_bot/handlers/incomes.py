@@ -7,11 +7,12 @@ from aiogram.fsm.state import StatesGroup, State
 from aiogram.types import Message, CallbackQuery
 
 from core.logger import logger
+from database.redis_client import redis_client
 from database.repo import DBRepository
 from services.csv_alfa_parser_service import AlfaBankCSVParser
 from services.csv_tink_parser_service import TinkoffBankCSVParser
+from tg_bot.keyboards.callbacks import BANK_PREFIX
 from tg_bot.keyboards.inline import get_banks_keyboard
-from database.redis_client import redis_client
 from workers.tasks import notifications
 
 router = Router(name="incomes_handler")
@@ -41,11 +42,10 @@ async def test(message: Message, state: FSMContext):
     task = notifications.task_test.apply_async(args=[message.from_user.id])
 
     user_dump.get("username")
-    await message.answer("✅ Задача отправлена в очередь Celery")
+    await message.answer("Задача отправлена в очередь Celery")
 
 
-
-@router.callback_query(IncomeStates.waiting_for_bank, F.data.startswith("bank_"))
+@router.callback_query(IncomeStates.waiting_for_bank, F.data.startswith(BANK_PREFIX))
 async def process_bank_selection(callback_query: CallbackQuery, state: FSMContext):
     bank_code = callback_query.data.split("_")[1]
 
@@ -108,8 +108,8 @@ async def process_income_file(message: Message, state: FSMContext, bot: Bot, rep
     result = await repo.add_operations_batch(message.from_user.id, result_csv, bank_code)
 
     await message.answer(
-        f"✅ Добавлено операций: {result['added']}\n"
-        f"⚠️ Дубликатов пропущено: {result['duplicates']}"
+        f"Добавлено операций: {result['added']}\n"
+        f"Дубликатов пропущено: {result['duplicates']}"
     )
 
     os.remove(file_path)
