@@ -19,6 +19,9 @@ celery_app.conf.update(
 
 task_routes = {
     'workers.tasks.notifications.*': {'queue': 'high'},
+    'workers.tasks.process_file.*': {'queue': 'default'},
     'workers.tasks.reports.*': {'queue': 'default'},
     'workers.tasks.analytics.*': {'queue': 'low'},
 }
+
+celery_app.conf.task_routes = task_routes

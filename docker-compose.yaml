@@ -68,7 +68,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: celery_worker
-    command: celery -A workers.tasks worker --loglevel=info --concurrency=2
+    command: celery -A workers.celery_worker worker --loglevel=info --concurrency=2 -Q celery,default,high,low
     restart: on-failure
     depends_on:
       rabbitmq:
@@ -89,7 +89,7 @@ services:
       context: .
       dockerfile: Dockerfile
     container_name: flower
-    command: celery -A workers.tasks flower --port=${FLOWER_PORT}
+    command: celery -A workers.celery_worker flower --port=${FLOWER_PORT}
     restart: on-failure
     depends_on:
       - rabbitmq

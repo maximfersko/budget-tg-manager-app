@@ -11,3 +11,4 @@ redis[hiredis]
 celery
 flower
 minio
+pydantic

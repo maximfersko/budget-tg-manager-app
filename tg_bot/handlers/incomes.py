@@ -7,13 +7,9 @@ from aiogram.fsm.state import StatesGroup, State
 from aiogram.types import Message, CallbackQuery
 
 from core.logger import logger
-from database.redis_client import redis_client
-from database.repo import DBRepository
-from services.csv_alfa_parser_service import AlfaBankCSVParser
-from services.csv_tink_parser_service import TinkoffBankCSVParser
+from dto.user_dto import UserDto
 from tg_bot.keyboards.callbacks import BANK_PREFIX
 from tg_bot.keyboards.inline import get_banks_keyboard
-from workers.tasks import notifications
 
 router = Router(name="incomes_handler")
 
@@ -37,12 +33,10 @@ async def incomes(message: Message, state: FSMContext):
 
 @router.message(Command("test"))
 async def test(message: Message, state: FSMContext):
-    user_dump = message.model_dump()
-
-    task = notifications.task_test.apply_async(args=[message.from_user.id])
-
-    user_dump.get("username")
-    await message.answer("Задача отправлена в очередь Celery")
+    from workers.tasks.notifications import task_test
+    
+    task = task_test.apply_async(args=[message.from_user.id])
+    await message.answer(f"Задача отправлена в очередь Celery\nTask ID: {task.id}")
 
 
 @router.callback_query(IncomeStates.waiting_for_bank, F.data.startswith(BANK_PREFIX))
@@ -59,7 +53,7 @@ async def process_bank_selection(callback_query: CallbackQuery, state: FSMContex
 
 
 @router.message(IncomeStates.waiting_for_document, F.document)
-async def process_income_file(message: Message, state: FSMContext, bot: Bot, repo: DBRepository):
+async def process_income_file(message: Message, state: FSMContext, bot: Bot):
     logger.info(message.model_dump())
 
     if not message.document.mime_type == "text/csv":
@@ -68,50 +62,38 @@ async def process_income_file(message: Message, state: FSMContext, bot: Bot, rep
 
     csv_doc = message.document
     filename = message.document.file_name
-    redis_cli = redis_client.get_client()
-    await redis_cli.append('upload_key', filename)
-    file_path = f"/tmp/incomes_{message.from_user.id}.csv"
-    value_red = await redis_cli.get('upload_key')
-    logger.info(f"redis value {value_red}")
-
-    await message.answer(f"{message.from_user.first_name} {message.from_user.last_name} your file processing.. ")
-
-    await bot.download(csv_doc, destination=file_path)
 
     user_data = await state.get_data()
-    logger.info(f"User data: {user_data}")
     bank_code = user_data.get("bank")
-    logger.info(f"Bank code: {bank_code}")
-
-    if bank_code == "tinkoff":
-        parser = TinkoffBankCSVParser()
-    elif bank_code == "alfa":
-        parser = AlfaBankCSVParser()
-    elif bank_code == "sber":
-        await message.answer("pass")
-        await state.clear()
-        return
-    else:
-        await message.answer("Unknown bank.")
+    
+    if bank_code not in ["tinkoff", "alfa"]:
+        await message.answer("Unknown bank or not supported yet.")
         await state.clear()
         return
 
-    result_csv = parser.parse_file(file_path)
+    await message.answer(f"{message.from_user.first_name}, your file is being processed...")
 
-    await repo.add_user(
-        tg_id=message.from_user.id,
+    user_info = UserDto(
+        user_id=message.from_user.id,
         first_name=message.from_user.first_name,
         last_name=message.from_user.last_name,
         username=message.from_user.username
     )
 
-    result = await repo.add_operations_batch(message.from_user.id, result_csv, bank_code)
-
-    await message.answer(
-        f"Добавлено операций: {result['added']}\n"
-        f"Дубликатов пропущено: {result['duplicates']}"
+    from workers.tasks.process_file import process_file
+    task = process_file.delay(
+        file_id=csv_doc.file_id,
+        user_info=user_info.model_dump(),
+        file_name=filename,
+        bank_code=bank_code
     )
 
-    os.remove(file_path)
+    logger.info(f"Task {task.id} sent to Celery for user {message.from_user.id}")
+
+    await message.answer(
+        f"✅ File sent to processing queue\n"
+        f"Task ID: {task.id}\n"
+        f"You will be notified when processing is complete."
+    )
 
     await state.clear()
