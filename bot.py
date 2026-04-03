@@ -1,19 +1,22 @@
 import asyncio
+
 from aiogram import Bot, Dispatcher
 
-from core.logger import logger
 from core.config import BOT_TOKEN
+from core.logger import logger
+from database.engine import create_db
 from database.redis_client import redis_client
+from database.minio_client import minio_client
 from tg_bot.handlers.commands import router as commands_router
 from tg_bot.handlers.incomes import router as incomes_router
 from tg_bot.handlers.statistics import router as statistics_router
-
 from tg_bot.middlewares.db_middleware import DBMiddleware
-from database.engine import create_db
+
 
 async def main():
     await create_db()
     await redis_client.connect()
+    minio_client.connect()
 
     bot = Bot(token=BOT_TOKEN)
     dp = Dispatcher()

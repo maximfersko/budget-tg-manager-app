@@ -10,3 +10,4 @@ statsmodels
 redis[hiredis]
 celery
 flower
+minio
