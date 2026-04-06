@@ -10,22 +10,34 @@ class AlfaBankCSVParser(BaseCSVParser):
         super().__init__(delimiter=',', encoding='utf-8')
 
     def parse_row(self, row: dict) -> Optional[Dict]:
-        if row.get('status') != 'Выполнен':
+        status = row.get('status', '')
+        if status and status != 'Выполнен':
             return None
 
         amount = float(row.get('amount'))
-        category = row.get('category')
+        category = row.get('category', 'Без категории')
+        operation_type = row.get('type', '')
 
         raw_date = row.get('operationDate', '')
         try:
-            op_date = datetime.strptime(raw_date, "%d.%m.%Y %H:%M:%S")
+            op_date = datetime.strptime(raw_date, "%d.%m.%Y")
         except ValueError:
-            op_date = datetime.now()
+            try:
+                op_date = datetime.strptime(raw_date, "%d.%m.%Y %H:%M:%S")
+            except ValueError:
+                op_date = datetime.now()
+
+        is_income = operation_type == 'Пополнение'
+        
+        if is_income:
+            amount = abs(amount)
+        else:
+            amount = -abs(amount)
 
         return {
             "date": op_date,
             "amount": amount,
-            "category": category,
+            "category": category if category else 'Без категории',
             "description": " ",
-            "is_income": amount > 0
+            "is_income": is_income
         }

@@ -13,6 +13,6 @@ async def statistics(message: Message, repo: DBRepository):
     user_id = message.from_user.id
 
     service = StatisticsService()
-    operations = await service.get_salary_statistics_range_date(repo, user_id)
+    operations = await service.get_base_stat(repo, user_id)
 
-    await message.answer(f"Salary: {operations['salary']:.2f} руб")
+    await message.answer(f"Salary: {0} руб")

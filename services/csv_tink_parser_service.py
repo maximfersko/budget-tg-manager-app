@@ -15,6 +15,9 @@ class TinkoffBankCSVParser(BaseCSVParser):
 
         raw_amount = row.get('Сумма операции', '0')
         clean_amount = float(raw_amount.replace(',', '.'))
+        
+        category = row.get('Категория', 'Без категории')
+        description = row.get('Описание', '')
 
         raw_date = row.get('Дата операции', '')
         try:
@@ -22,10 +25,17 @@ class TinkoffBankCSVParser(BaseCSVParser):
         except ValueError:
             op_date = datetime.now()
 
+        is_income = clean_amount > 0
+        
+        if is_income:
+            clean_amount = abs(clean_amount)
+        else:
+            clean_amount = -abs(clean_amount)
+
         return {
             "date": op_date,
             "amount": clean_amount,
-            "category": row.get('Категория', 'Без категории'),
-            "description": row.get('Описание', ''),
-            "is_income": clean_amount > 0
+            "category": category,
+            "description": description,
+            "is_income": is_income
         }
