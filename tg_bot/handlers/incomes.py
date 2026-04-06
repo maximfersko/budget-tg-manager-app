@@ -91,7 +91,7 @@ async def process_income_file(message: Message, state: FSMContext, bot: Bot):
     logger.info(f"Task {task.id} sent to Celery for user {message.from_user.id}")
 
     await message.answer(
-        f"✅ File sent to processing queue\n"
+        f"File sent to processing queue\n"
         f"Task ID: {task.id}\n"
         f"You will be notified when processing is complete."
     )

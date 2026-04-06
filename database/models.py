@@ -1,7 +1,36 @@
-from sqlalchemy import Column, Integer, String, BigInteger, Float, Boolean, DateTime, ForeignKey, func
+from sqlalchemy import Column, Integer, String, BigInteger, Float, Boolean, DateTime, ForeignKey, func, Enum, Table
 from sqlalchemy.orm import relationship
+import enum
 
 from database.engine import Base
+
+
+class UserRole(enum.Enum):
+    USER = "user"
+    ADMIN = "admin"
+    MODERATOR = "moderator"
+
+
+user_roles = Table(
+    'user_roles',
+    Base.metadata,
+    Column('user_id', BigInteger, ForeignKey('users.tg_id', ondelete='CASCADE'), primary_key=True),
+    Column('role_id', Integer, ForeignKey('roles.id', ondelete='CASCADE'), primary_key=True)
+)
+
+
+class Role(Base):
+    __tablename__ = "roles"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(Enum(UserRole), unique=True, nullable=False)
+    description = Column(String(255), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    users = relationship("User", secondary=user_roles, back_populates="roles")
+
+    def __repr__(self):
+        return f"<Role(id={self.id}, name={self.name.value})>"
 
 
 class User(Base):
@@ -11,13 +40,26 @@ class User(Base):
     username = Column(String(50), nullable=True)
     first_name = Column(String(50), nullable=True)
     last_name = Column(String(50), nullable=True)
+    is_active = Column(Boolean, default=True)
+    is_banned = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
+    roles = relationship("Role", secondary=user_roles, back_populates="users")
     operations = relationship("Operation", back_populates="user", cascade="all, delete-orphan")
     categories = relationship("Category", back_populates="user", cascade="all, delete-orphan")
 
+    def has_role(self, role: UserRole) -> bool:
+        return any(r.name == role for r in self.roles)
+
+    def is_admin(self) -> bool:
+        return self.has_role(UserRole.ADMIN)
+
+    def is_moderator(self) -> bool:
+        return self.has_role(UserRole.MODERATOR)
+
     def __repr__(self):
-        return f"<User(tg_id={self.tg_id}, username={self.username})>"
+        return f"<User(tg_id={self.tg_id}, username={self.username}, roles={[r.name.value for r in self.roles]})>"
 
 
 class Category(Base):

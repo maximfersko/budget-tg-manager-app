@@ -12,7 +12,9 @@ class DBRepository:
         self.session = session
 
     async def get_user_by_tg_id(self, tg_id: int) -> Optional[User]:
-        stmt = select(User).where(User.tg_id == tg_id)
+        from sqlalchemy.orm import selectinload
+        
+        stmt = select(User).options(selectinload(User.roles)).where(User.tg_id == tg_id)
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
@@ -35,6 +37,10 @@ class DBRepository:
                 username=username
             )
             self.session.add(user)
+            await self.session.flush()
+            
+            from database.models import UserRole
+            await self.assign_role_to_user(tg_id, UserRole.USER.value)
         else:
             user.first_name = first_name
             user.last_name = last_name
@@ -211,3 +217,84 @@ class DBRepository:
 
         result = await self.session.execute(stmt)
         return result.all()
+
+    
+    async def get_role_by_name(self, role_name: str):
+        from database.models import Role, UserRole
+        
+        stmt = select(Role).where(Role.name == UserRole(role_name))
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+    
+    async def create_role(self, role_name: str, description: Optional[str] = None):
+        from database.models import Role, UserRole
+        
+        role = Role(name=UserRole(role_name), description=description)
+        self.session.add(role)
+        await self.session.commit()
+        return role
+    
+    async def assign_role_to_user(self, tg_id: int, role_name: str) -> bool:
+        from database.models import UserRole
+        
+        user = await self.get_user_by_tg_id(tg_id)
+        if not user:
+            return False
+        
+        role = await self.get_role_by_name(role_name)
+        if not role:
+            role = await self.create_role(role_name)
+        
+        if role not in user.roles:
+            user.roles.append(role)
+            await self.session.commit()
+        
+        return True
+    
+    async def remove_role_from_user(self, tg_id: int, role_name: str) -> bool:
+        user = await self.get_user_by_tg_id(tg_id)
+        if not user:
+            return False
+        
+        role = await self.get_role_by_name(role_name)
+        if role and role in user.roles:
+            user.roles.remove(role)
+            await self.session.commit()
+        
+        return True
+    
+    async def get_user_roles(self, tg_id: int) -> List[str]:
+        user = await self.get_user_by_tg_id(tg_id)
+        if not user:
+            return []
+        
+        return [role.name.value for role in user.roles]
+    
+    async def ban_user(self, tg_id: int) -> bool:
+        user = await self.get_user_by_tg_id(tg_id)
+        if not user:
+            return False
+        
+        user.is_banned = True
+        user.is_active = False
+        await self.session.commit()
+        return True
+    
+    async def unban_user(self, tg_id: int) -> bool:
+        user = await self.get_user_by_tg_id(tg_id)
+        if not user:
+            return False
+        
+        user.is_banned = False
+        user.is_active = True
+        await self.session.commit()
+        return True
+    
+    async def get_all_admins(self) -> List[User]:
+        from database.models import Role, UserRole, user_roles
+        
+        stmt = select(User).join(user_roles).join(Role).where(
+            Role.name == UserRole.ADMIN
+        )
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())

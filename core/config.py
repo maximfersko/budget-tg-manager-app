@@ -9,6 +9,8 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 if not BOT_TOKEN:
     raise ValueError("Error: BOT_TOKEN not found in .env!")
 
+FIRST_ADMIN_ID = int(os.getenv("FIRST_ADMIN_ID", "751575780"))
+
 DB_URL = os.getenv("DB_URL")
 REDIS_URL = os.getenv("REDIS_URL")
 RABBITMQ_URL = os.getenv("RABBITMQ_URL")
