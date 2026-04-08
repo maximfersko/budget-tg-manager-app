@@ -26,6 +26,12 @@ class DBRepository:
         result = await self.session.execute(stmt)
         return result.scalars().all()
 
+    async def get_unique_raw_categories(self, tg_id: int) -> List[str]:
+        from sqlalchemy import distinct
+        stmt = select(distinct(Operation.raw_category)).where(Operation.user_id == tg_id)
+        result = await self.session.execute(stmt)
+        return [row[0] for row in result.all() if row[0]]
+
     async def add_user(self, tg_id: int, first_name: str, last_name: Optional[str] = None,
                        username: Optional[str] = None) -> User:
         user = await self.get_user_by_tg_id(tg_id)

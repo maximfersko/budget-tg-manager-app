@@ -1,11 +1,8 @@
 import json
-from datetime import datetime
-
 import httpx
-
+from datetime import datetime
 from core.config import OPENROUTER_API_KEY, LLM_MODEL
 from core.logger import logger
-
 
 class AIService:
 
@@ -26,67 +23,57 @@ class AIService:
                 {"role": "user", "content": user_prompt}
             ]
         }
-
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
                 logger.info(f"Sending request to LLM ({LLM_MODEL})...")
                 response = await client.post(self.base_url, headers=self.headers, json=payload)
                 response.raise_for_status()
                 result = response.json()
-                content = result['choices'][0]['message']['content']
-                return content
+                return result['choices'][0]['message']['content']
         except Exception as e:
             logger.error(f"LLM API Error: {e}")
             return None
 
-    async def parse_user_intent(self, text: str) -> dict:
+    async def parse_user_intent(self, text: str, categories: list = None) -> dict:
         current_date = datetime.now().strftime("%Y-%m-%d")
+        cats_str = ", ".join(categories) if categories else "No categories available"
+        
         system_prompt = (
-            f"You are a command dispatcher for a financial bot. Today's date is {current_date}. "
-            "Your task is to extract the action, date range, and optional category from the user's message (mostly in Russian). "
-            "Respond ONLY in JSON format: "
-            '{"action": "stats" | "categories" | "unknown", "start_date": "YYYY-MM-DD", "end_date": "YYYY-MM-DD", "category": "string|null"}'
+            f"You are a command dispatcher for a financial bot. Today's date is {current_date}.\n"
+            f"Available database categories: {cats_str}\n\n"
+            "Analyze the user message and extract: action, date range, and a LIST of relevant categories.\n"
+            "DATE RANGE RULES:\n"
+            "1. If user says 'for a year' ('за год'), 'for a month' ('за месяц'), 'for a week' ('за неделю'), "
+            "it means from TODAY back to the past (e.g., today is 2026-04-08, so 'for a year' is 2025-04-08 to 2026-04-08).\n"
+            "2. Only use calendar years (like 01.01 to 31.12) if the user explicitly specifies a year (e.g., 'for 2025').\n"
+            "3. If no specific period is mentioned, use the last 30 days.\n\n"
+            "CATEGORY RULES:\n"
+            "Map query to relevant categories from the available list. Support multiple categories.\n"
+            "Respond ONLY in JSON:\n"
+            '{"action": "stats" | "categories" | "unknown", "start_date": "YYYY-MM-DD", "end_date": "YYYY-MM-DD", "categories": ["string"]}'
         )
-
-        user_prompt = f"User message: '{text}'"
-
-        response = await self._ask_llm(system_prompt, user_prompt)
+        
+        response = await self._ask_llm(system_prompt, f"User message: '{text}'")
         if not response:
-            return {"action": "unknown", "start_date": None, "end_date": None, "category": None}
-
+            return {"action": "unknown", "start_date": None, "end_date": None, "categories": []}
+            
         try:
-            logger.info(f"Parsing intent for: {text}")
             clean_res = response.replace("```json", "").replace("```", "").strip()
             return json.loads(clean_res)
         except Exception as e:
             logger.error(f"Failed to parse AI intent: {e}")
-            return {"action": "unknown", "start_date": None, "end_date": None, "category": None}
+            return {"action": "unknown", "start_date": None, "end_date": None, "categories": []}
 
     async def analyze_spending(self, summary_text: str, user_memories: list = None) -> str:
         memories_str = "\n".join(user_memories) if user_memories else "No previous records."
-
         system_prompt = (
-            "You are a professional financial assistant. "
-            "Analyze the provided financial report and context. "
-            "Give brief, sharp, and helpful advice. "
-            "IMPORTANT: Respond in RUSSIAN. Do NOT use any emojis. Keep it professional."
+            "You are a professional financial assistant. Analyze the report and give advice.\n"
+            "IMPORTANT: Respond in RUSSIAN. Do NOT use emojis. Professional tone."
         )
-        
-        user_prompt = (
-            f"Current Report:\n{summary_text}\n\n"
-            f"User context/history:\n{memories_str}\n\n"
-            "Analyze this and give advice."
-        )
-
-        advice = await self._ask_llm(system_prompt, user_prompt)
+        advice = await self._ask_llm(system_prompt, f"Report:\n{summary_text}\n\nHistory:\n{memories_str}")
         return advice or "Не удалось получить совет от ИИ."
 
     async def extract_insight(self, summary_text: str) -> str:
-        system_prompt = (
-            "You are a memory extractor. Analyze the financial report and find ONE key fact about the user's behavior. "
-            "The fact should be in the format: 'User usually spends too much on X during weekends' or 'Salary comes every 15th day'. "
-            "Respond ONLY with one sentence in English. No emojis."
-        )
-
+        system_prompt = "Find ONE key behavioral fact from the report. ONE sentence in English. No emojis."
         insight = await self._ask_llm(system_prompt, f"Report:\n{summary_text}")
         return insight.strip() if insight else None
