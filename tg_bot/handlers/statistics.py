@@ -1,4 +1,3 @@
-import re
 from datetime import datetime
 
 from aiogram import Router
@@ -55,11 +54,18 @@ async def stats(message: Message, repo: DBRepository, command: CommandObject):
     summary_text = stat_service.get_summary_for_ai(base_stats, df)
 
     old_memories = await vector_service.get_relevant_memories(message.from_user.id, summary_text)
-    
     ai_advice = await ai_service.analyze_spending(summary_text, old_memories)
 
-    new_insight = await ai_service.extract_insight(summary_text)
-    await vector_service.save_insight(message.from_user.id, new_insight)
+    from workers.tasks.ai_tasks import process_ai_insight_task
+    process_ai_insight_task.delay(
+        user_id=message.from_user.id,
+        summary_text=summary_text,
+        metadata={
+            "start_date": start_date.isoformat() if start_date else None,
+            "end_date": end_date.isoformat() if end_date else None,
+            "type": "period_summary"
+        }
+    )
 
     clean_advice = ai_advice.replace("_", "\\_").replace("*", "\\*").replace("`", "\\`")
 
@@ -74,7 +80,7 @@ async def stats(message: Message, repo: DBRepository, command: CommandObject):
         f"Доходных: {base_stats['income_count']}\n"
         f"Расходных: {base_stats['expense_count']}\n"
         f"Исключено внутренних: {base_stats.get('internal_transfers_excluded', 0)}\n\n"
-        f"🤖 *Совет от ИИ:*\n{clean_advice}"
+        f"Совет:*\n{clean_advice}"
     )
 
     await message.answer(response, parse_mode="Markdown")
