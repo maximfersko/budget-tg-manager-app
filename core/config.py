@@ -1,11 +1,9 @@
 import os
-
 from dotenv import load_dotenv
 
 load_dotenv()
 
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-
 if not BOT_TOKEN:
     raise ValueError("Error: BOT_TOKEN not found in .env!")
 
@@ -26,3 +24,9 @@ INTERNAL_TRANSFER_KEYWORDS = [
     for kw in os.getenv("INTERNAL_TRANSFER_KEYWORDS", "").split(",") 
     if kw.strip()
 ]
+
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
+LLM_MODEL = os.getenv("LLM_MODEL", "deepseek/deepseek-chat")
+
+QDRANT_HOST = os.getenv("QDRANT_HOST", "qdrant")
+QDRANT_PORT = int(os.getenv("QDRANT_PORT", 6333))

@@ -1,50 +1,49 @@
-import os
-from qdrant_client.http import models
+import uuid
+from datetime import datetime
+from typing import List
+
 from core.qdrant_client import qdrant_manager
 from core.logger import logger
 
 class VectorService:
+
     def __init__(self):
         self.client = qdrant_manager.client
         self.collection_name = qdrant_manager.collection_name
 
-    async def save_insight(self, user_id: int, text: str, metadata: dict = None):
-        import uuid
+    async def save_insight(self, user_id: int, insight_text: str, metadata: dict = None):
         try:
+            point_id = str(uuid.uuid4())
             self.client.add(
                 collection_name=self.collection_name,
-                documents=[text],
-                metadata=[{"user_id": user_id, **(metadata or {})}],
-                ids=[str(uuid.uuid4())]
+                documents=[insight_text],
+                metadata=[{
+                    "user_id": user_id,
+                    "created_at": datetime.now().isoformat(),
+                    **(metadata or {})
+                }],
+                ids=[point_id]
             )
-            logger.info(f"Saved memory for user {user_id}: {text[:50]}...")
+            logger.info(f"Insight saved successfully for user {user_id}. ID: {point_id}")
         except Exception as e:
-            logger.error(f"Failed to save insight: {e}")
+            logger.error(f"Failed to save insight to Qdrant: {e}")
 
-    async def get_relevant_memories(self, user_id: int, query: str, limit: int = 5):
+    async def get_relevant_memories(self, user_id: int, query: str, limit: int = 5) -> List[str]:
         try:
-            results = self.client.query(
+            search_result = self.client.query_points(
                 collection_name=self.collection_name,
-                query_text=query,
-                query_filter=models.Filter(
-                    must=[
-                        models.FieldCondition(
-                            key="user_id",
-                            match=models.MatchValue(value=user_id),
-                        )
+                query=query,
+                query_filter={
+                    "must": [
+                        {"key": "user_id", "match": {"value": user_id}}
                     ]
-                ),
+                },
                 limit=limit
             )
-            
-            return [
-                {
-                    "text": res.document,
-                    "start_date": res.metadata.get("start_date"),
-                    "end_date": res.metadata.get("end_date")
-                } 
-                for res in results
-            ]
+
+            memories = [point.document for point in search_result.points]
+            logger.info(f"Retrieved {len(memories)} relevant memories for user {user_id}")
+            return memories
         except Exception as e:
-            logger.error(f"Failed to search memories: {e}")
+            logger.error(f"Failed to search memories in Qdrant: {e}")
             return []

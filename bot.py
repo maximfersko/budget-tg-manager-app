@@ -38,10 +38,9 @@ async def main():
 
     await bot.delete_webhook(drop_pending_updates=True)
 
-    # Initialize first admin
     await init_first_admin()
 
-    logger.info("Bot starting... ")
+    logger.info("Bot starting...")
 
     try:
         await dp.start_polling(bot)
@@ -57,16 +56,15 @@ async def init_first_admin():
     
     async with async_session() as session:
         repo = DBRepository(session)
-        
         user = await repo.get_user_by_tg_id(FIRST_ADMIN_ID)
         
         if user and not user.is_admin():
             await repo.assign_role_to_user(FIRST_ADMIN_ID, UserRole.ADMIN.value)
-            logger.info(f"Admin role auto-assigned to user {FIRST_ADMIN_ID}")
+            logger.info(f"Admin role assigned to {FIRST_ADMIN_ID}")
         elif user and user.is_admin():
-            logger.info(f"User {FIRST_ADMIN_ID} already has admin role")
+            logger.info(f"User {FIRST_ADMIN_ID} is already admin")
         else:
-            logger.info(f"User {FIRST_ADMIN_ID} not found yet. Admin role will be assigned after first interaction.")
+            logger.info(f"Admin user {FIRST_ADMIN_ID} not found yet")
 
 
 if __name__ == '__main__':

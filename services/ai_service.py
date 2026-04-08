@@ -1,53 +1,92 @@
-from core.ai_client import ai_client
+import json
+from datetime import datetime
+
+import httpx
+
+from core.config import OPENROUTER_API_KEY, LLM_MODEL
 from core.logger import logger
 
+
 class AIService:
-    async def analyze_spending(self, summary_text: str, user_memories: list = None):
 
-        context_memories = ""
-        if user_memories:
-            for m in user_memories:
-                date_info = ""
-                if m.get('start_date') and m.get('end_date'):
-                    s = m['start_date'].split('T')[0]
-                    e = m['end_date'].split('T')[0]
-                    date_info = f" (за период {s} - {e})"
+    def __init__(self):
+        self.api_key = OPENROUTER_API_KEY
+        self.base_url = "https://openrouter.ai/api/v1/chat/completions"
+        self.headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "HTTP-Referer": "https://github.com/maximfersko/budget-tg-manager-app",
+            "Content-Type": "application/json"
+        }
 
-                context_memories += f"- {m['text']}{date_info}\n"
-        else:
-            context_memories = "Нет данных из прошлого."
-        
+    async def _ask_llm(self, system_prompt: str, user_prompt: str) -> str:
+        payload = {
+            "model": LLM_MODEL,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ]
+        }
+
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                logger.info(f"Sending request to LLM ({LLM_MODEL})...")
+                response = await client.post(self.base_url, headers=self.headers, json=payload)
+                response.raise_for_status()
+                result = response.json()
+                content = result['choices'][0]['message']['content']
+                return content
+        except Exception as e:
+            logger.error(f"LLM API Error: {e}")
+            return None
+
+    async def parse_user_intent(self, text: str) -> dict:
+        current_date = datetime.now().strftime("%Y-%m-%d")
         system_prompt = (
-            "Ты — профессиональный финансовый ассистент. "
-            "Твоя задача — анализировать статистику и давать лаконичные советы. "
-            "Используй данные из прошлого, чтобы замечать изменения в поведении."
+            f"You are a command dispatcher for a financial bot. Today's date is {current_date}. "
+            "Your task is to extract the action, date range, and optional category from the user's message (mostly in Russian). "
+            "Respond ONLY in JSON format: "
+            '{"action": "stats" | "categories" | "unknown", "start_date": "YYYY-MM-DD", "end_date": "YYYY-MM-DD", "category": "string|null"}'
+        )
+
+        user_prompt = f"User message: '{text}'"
+
+        response = await self._ask_llm(system_prompt, user_prompt)
+        if not response:
+            return {"action": "unknown", "start_date": None, "end_date": None, "category": None}
+
+        try:
+            logger.info(f"Parsing intent for: {text}")
+            clean_res = response.replace("```json", "").replace("```", "").strip()
+            return json.loads(clean_res)
+        except Exception as e:
+            logger.error(f"Failed to parse AI intent: {e}")
+            return {"action": "unknown", "start_date": None, "end_date": None, "category": None}
+
+    async def analyze_spending(self, summary_text: str, user_memories: list = None) -> str:
+        memories_str = "\n".join(user_memories) if user_memories else "No previous records."
+
+        system_prompt = (
+            "You are a professional financial assistant. "
+            "Analyze the provided financial report and context. "
+            "Give brief, sharp, and helpful advice. "
+            "IMPORTANT: Respond in RUSSIAN. Do NOT use any emojis. Keep it professional."
         )
         
         user_prompt = (
-            f"Вот статистика трат за текущий период:\n{summary_text}\n\n"
-            f"История инсайтов о пользователе:\n{context_memories}\n\n"
-            "Сделай краткий анализ и дай 1-2 совета."
+            f"Current Report:\n{summary_text}\n\n"
+            f"User context/history:\n{memories_str}\n\n"
+            "Analyze this and give advice."
         )
 
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt}
-        ]
+        advice = await self._ask_llm(system_prompt, user_prompt)
+        return advice or "Не удалось получить совет от ИИ."
 
-        logger.info("Sending request to AI for analysis with context...")
-        return await ai_client.get_completion(messages)
-
-    async def extract_insight(self, summary_text: str):
+    async def extract_insight(self, summary_text: str) -> str:
         system_prompt = (
-            "Ты — аналитик. Сформулируй ОДИН короткий факт о финансовом поведении "
-            "пользователя для его базы знаний на основе текущей статистики. Одно предложение."
+            "You are a memory extractor. Analyze the financial report and find ONE key fact about the user's behavior. "
+            "The fact should be in the format: 'User usually spends too much on X during weekends' or 'Salary comes every 15th day'. "
+            "Respond ONLY with one sentence in English. No emojis."
         )
-        
-        user_prompt = f"Извлеки инсайт из этих данных:\n{summary_text}"
 
-        messages = [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt}
-        ]
-
-        return await ai_client.get_completion(messages, temperature=0.3)
+        insight = await self._ask_llm(system_prompt, f"Report:\n{summary_text}")
+        return insight.strip() if insight else None

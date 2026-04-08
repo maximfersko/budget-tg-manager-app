@@ -186,14 +186,6 @@ class DBRepository:
         result = await self.session.execute(stmt)
         return result.all()
 
-    async def get_user_operations(self, tg_id: int) -> List[Operation]:
-        stmt = select(Operation).where(
-            Operation.user_id == tg_id
-        ).order_by(Operation.date.desc())
-
-        result = await self.session.execute(stmt)
-        return result.scalars().all()
-
     async def get_category_breakdown(self, tg_id: int, start_date, end_date) -> List[tuple]:
         from sqlalchemy import func
 
@@ -218,7 +210,6 @@ class DBRepository:
         result = await self.session.execute(stmt)
         return result.all()
 
-    
     async def get_role_by_name(self, role_name: str):
         from database.models import Role, UserRole
         
@@ -235,8 +226,6 @@ class DBRepository:
         return role
     
     async def assign_role_to_user(self, tg_id: int, role_name: str) -> bool:
-        from database.models import UserRole
-        
         user = await self.get_user_by_tg_id(tg_id)
         if not user:
             return False

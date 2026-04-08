@@ -7,14 +7,12 @@ from database.repo import DBRepository
 
 router = Router(name="user_commands_router")
 
-
 @router.message(CommandStart())
 async def cmd_start_handler(message: Message, repo: DBRepository):
     username = message.from_user.first_name
 
     logger.info(f"User {message.from_user.id} ({username}) typed /start")
     
-    # Register user in database
     await repo.add_user(
         tg_id=message.from_user.id,
         first_name=message.from_user.first_name,

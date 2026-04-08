@@ -26,7 +26,6 @@ def process_file(self, file_id: str, user_info: dict, file_name: str, bank_code:
         
         try:
             from database.engine import get_async_session_maker
-            
             worker_session = get_async_session_maker()
             
             user_dto = UserDto(**user_info)
@@ -35,25 +34,20 @@ def process_file(self, file_id: str, user_info: dict, file_name: str, bank_code:
             logger.info(f"Processing file {file_name} for user {user_id}, bank: {bank_code}")
 
             from aiogram import Bot
-
             bot = Bot(token=BOT_TOKEN)
             
             file_extension = file_name.lower().split('.')[-1]
             file_path = f"/tmp/incomes_{user_id}_{file_id}.{file_extension}"
 
             file_service = FileService()
-
             file_info = await bot.get_file(file_id)
             await bot.download_file(file_info.file_path, destination=file_path)
-            logger.info(f"File downloaded to {file_path}")
             
             f_hash = file_service.calculate_hash(file_path)
             cache_key = f'file:hash:{f_hash}'
 
             redis_cli = Redis.from_url(REDIS_URL, decode_responses=True)
-            file_exists = await redis_cli.exists(cache_key)
-            
-            if file_exists:
+            if await redis_cli.exists(cache_key):
                 raise FileExistsError(f'File {file_name} already uploaded')
 
             if bank_code == "tinkoff":
@@ -66,45 +60,34 @@ def process_file(self, file_id: str, user_info: dict, file_name: str, bank_code:
                 raise ValueError(f"Unsupported bank: {bank_code}")
 
             operations = parser.parse_file(file_path)
-            logger.info(f"Parsed {len(operations)} operations")
 
             async with worker_session() as session:
                 repo = DBRepository(session)
-
                 await repo.add_user(
                     tg_id=user_dto.user_id,
                     first_name=user_dto.first_name,
                     last_name=user_dto.last_name,
                     username=user_dto.username
                 )
-
                 result = await repo.add_operations_batch(user_id, operations, bank_code)
 
-            logger.info(f"Saved to DB: {result}")
+            logger.info(f"Database update result: {result}")
 
             timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-            year = datetime.utcnow().year
-            month = datetime.utcnow().month
-            s3_key = f"uploads/{user_id}/{year}/{month:02d}/{timestamp}_{file_name}"
-            
-            content_type = "application/pdf" if file_extension == "pdf" else "text/csv"
+            s3_key = f"uploads/{user_id}/{datetime.utcnow().year}/{datetime.utcnow().month:02d}/{timestamp}_{file_name}"
 
             minio_cli = minio_client.get_client()
             minio_cli.fput_object(
                 bucket_name=MINIO_BUCKET,
                 object_name=s3_key,
                 file_path=file_path,
-                content_type=content_type
+                content_type="application/pdf" if file_extension == "pdf" else "text/csv"
             )
 
-            logger.info(f"File uploaded to MinIO: {s3_key}")
-            
             await redis_cli.setex(cache_key, 1209600, str(user_id))
-            logger.info(f"File hash cached: {cache_key}")
 
             if os.path.exists(file_path):
                 os.remove(file_path)
-                logger.info(f"Temp file removed: {file_path}")
 
             return {
                 "status": "success",
@@ -113,43 +96,24 @@ def process_file(self, file_id: str, user_info: dict, file_name: str, bank_code:
                 "s3_key": s3_key
             }
 
-        except ValueError as e:
-            logger.error(f"Validation error: {e}")
-            if file_path and os.path.exists(file_path):
-                os.remove(file_path)
-            return {"status": "failed", "error": str(e)}
-
-        except FileExistsError as e:
-            return {"status": "failed", "error": str(e)}
-
         except Exception as e:
-            logger.error(f"Error processing file: {e}", exc_info=True)
-
+            logger.error(f"Error processing file: {e}")
             if self.request.retries >= self.max_retries:
                 if file_path and os.path.exists(file_path):
                     os.remove(file_path)
-                logger.error("Max retries reached, giving up")
                 return {"status": "failed", "error": str(e)}
-
-            countdown = 60 * (2 ** self.request.retries)
-            raise self.retry(exc=e, countdown=countdown)
+            raise self.retry(exc=e, countdown=60 * (2 ** self.request.retries))
         
         finally:
-            if redis_cli:
-                await redis_cli.aclose()
-            if bot:
-                await bot.session.close()
+            if redis_cli: await redis_cli.aclose()
+            if bot: await bot.session.close()
 
     try:
         result = asyncio.run(_process())
-        logger.info(f"File processing completed: {result}")
-        
         user_id = user_info.get("user_id")
         if user_id:
             notify_user_file_processed.delay(user_id=user_id, result=result)
-        
         return result
-
     except Exception as e:
-        logger.error(f"Task retry triggered: {e}")
+        logger.error(f"Task failure: {e}")
         raise
