@@ -156,3 +156,31 @@ class StatisticsService:
         logger.info(f"categories_stat: {result_categories}")
 
         return result_categories
+
+    def get_summary_for_ai(self, stats: dict, df: pd.DataFrame) -> str:
+
+        if not stats or df.empty:
+            return "Нет данных за выбранный период."
+
+        expense_df = df[df['is_income'] == False]
+        if not expense_df.empty:
+            top_cats = (
+                expense_df.groupby('raw_category')['amount']
+                .sum().abs()
+                .sort_values(ascending=False)
+                .head(5)
+            )
+            top_cats_str = ", ".join([f"{k}: {v:.0f}" for k, v in top_cats.items()])
+        else:
+            top_cats_str = "нет расходов"
+
+        summary = (
+            f"Отчет:\n"
+            f"- Доходы: {stats['sum_income']:.0f} RUB\n"
+            f"- Расходы: {stats['sum_expense']:.0f} RUB\n"
+            f"- Баланс: {stats['balance']:.0f} RUB\n"
+            f"- Ср. расход: {stats['avg_expense']:.0f} RUB\n"
+            f"- Топ-5 расходов: {top_cats_str}\n"
+            f"- Транзакций: {stats['transactions_count']}"
+        )
+        return summary

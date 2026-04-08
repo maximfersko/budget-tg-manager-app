@@ -13,3 +13,7 @@ flower
 minio
 pydantic
 pdfplumber
+openai
+qdrant-client
+langchain-ollama
+fastembed

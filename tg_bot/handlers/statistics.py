@@ -22,7 +22,6 @@ def _parse_date_from_mess_args(command: CommandObject) -> (datetime, datetime):
             if len(part_date) == 2:
                 start_date = datetime.strptime(part_date[0].strip(), "%d.%m.%Y")
                 end_date = datetime.strptime(part_date[1].strip(), "%d.%m.%Y")
-                # Устанавливаем конец дня для конечной даты
                 end_date = end_date.replace(hour=23, minute=59, second=59)
                 logger.info(f'Period: {start_date} - {end_date}')
         except ValueError:
@@ -42,20 +41,43 @@ async def stats(message: Message, repo: DBRepository, command: CommandObject):
     logger.info(f'Part date: {start_date, end_date}')
 
     stat_service = StatisticsService()
-    result = await stat_service.get_base_stat(repo, message.from_user.id, start_date, end_date)
+    from services.ai_service import AIService
+    from services.vector_service import VectorService
+    
+    ai_service = AIService()
+    vector_service = VectorService()
 
-    await message.answer(
-        f"[STATISTICS]\n\n"
-        f"Salary: {result['salary']} RUB\n"
-        f"Total income: {result['sum_income']} RUB\n"
-        f"Total expenses: {result['sum_expense']} RUB\n"
-        f"Balance: {result['balance']} RUB\n"
-        f"Avg expense: {result['avg_expense']} RUB\n\n"
-        f"Transactions: {result['transactions_count']}\n"
-        f"Income operations: {result['income_count']}\n"
-        f"Expense operations: {result['expense_count']}\n"
-        f"Internal transfers excluded: {result.get('internal_transfers_excluded', 0)}"
+    base_stats = await stat_service.get_base_stat(repo, message.from_user.id, start_date, end_date)
+    
+    from database.models import Operation
+    operations: list[Operation] = await repo.get_user_operations(message.from_user.id)
+    df = stat_service._filter_statistics_date(operations, start_date, end_date)
+    summary_text = stat_service.get_summary_for_ai(base_stats, df)
+
+    old_memories = await vector_service.get_relevant_memories(message.from_user.id, summary_text)
+    
+    ai_advice = await ai_service.analyze_spending(summary_text, old_memories)
+
+    new_insight = await ai_service.extract_insight(summary_text)
+    await vector_service.save_insight(message.from_user.id, new_insight)
+
+    clean_advice = ai_advice.replace("_", "\\_").replace("*", "\\*").replace("`", "\\`")
+
+    response = (
+        f"*СТАТИСТИКА*\n\n"
+        f"Зарплата: {base_stats['salary']} RUB\n"
+        f"Доходы: {base_stats['sum_income']} RUB\n"
+        f"Расходы: {base_stats['sum_expense']} RUB\n"
+        f"Баланс: {base_stats['balance']} RUB\n"
+        f"Средний расход: {base_stats['avg_expense']} RUB\n\n"
+        f"Транзакций: {base_stats['transactions_count']}\n"
+        f"Доходных: {base_stats['income_count']}\n"
+        f"Расходных: {base_stats['expense_count']}\n"
+        f"Исключено внутренних: {base_stats.get('internal_transfers_excluded', 0)}\n\n"
+        f"🤖 *Совет от ИИ:*\n{clean_advice}"
     )
+
+    await message.answer(response, parse_mode="Markdown")
 
 
 @router.message(Command("categories"))

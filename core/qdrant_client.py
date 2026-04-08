@@ -19,7 +19,10 @@ class QdrantManager:
             if not exists:
                 self.client.create_collection(
                     collection_name=self.collection_name,
-                    vectors_config=models.VectorParams(size=384, distance=models.Distance.COSINE),
+                    # Настройка для совместимости с FastEmbed (имя вектора по умолчанию)
+                    vectors_config={
+                        "fast-bge-small-en": models.VectorParams(size=384, distance=models.Distance.COSINE)
+                    }
                 )
                 logger.info(f"Created Qdrant collection: {self.collection_name}")
         except Exception as e:
