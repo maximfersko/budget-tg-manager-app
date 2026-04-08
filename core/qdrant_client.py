@@ -3,8 +3,7 @@ from qdrant_client import QdrantClient
 from qdrant_client.http import models
 from core.logger import logger
 
-
-class QdrantClient:
+class QdrantManager:
     def __init__(self):
         self.client = QdrantClient(
             host=os.getenv("QDRANT_HOST", "qdrant"),
@@ -22,9 +21,8 @@ class QdrantClient:
                     collection_name=self.collection_name,
                     vectors_config=models.VectorParams(size=384, distance=models.Distance.COSINE),
                 )
-                logger.info(f"Created collection {self.collection_name}")
+                logger.info(f"Created Qdrant collection: {self.collection_name}")
         except Exception as e:
             logger.error(f"Error ensuring qdrant collection: {e}")
 
-
-qdrant_manager = QdrantClient()
+qdrant_manager = QdrantManager()
