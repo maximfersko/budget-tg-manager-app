@@ -122,8 +122,19 @@ services:
       timeout: 20s
       retries: 3
 
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: qdrant
+    restart: unless-stopped
+    ports:
+      - "${QDRANT_EXTERNAL_PORT}:6333"
+      - "${QDRANT_DASHBOARD_EXTERNAL_PORT}:6333"
+    volumes:
+      - qdrant_data:/qdrant/storage
+
 volumes:
   pg_data:
   redis_data:
   rabbitmq_data:
   minio_data:
+  qdrant_data:

@@ -10,6 +10,7 @@ from database.repo import DBRepository
 from dto.user_dto import UserDto
 from services.csv_alfa_parser_service import AlfaBankCSVParser
 from services.csv_tink_parser_service import TinkoffBankCSVParser
+from services.pdf_sber_parser_service import SberBankPDFParser
 from services.file_service import FileService
 from workers.tasks.celery_config import celery_app
 from workers.tasks.notifications import notify_user_file_processed
@@ -35,7 +36,9 @@ def process_file(self, file_id: str, user_info: dict, file_name: str, bank_code:
             from aiogram import Bot
 
             bot = Bot(token=BOT_TOKEN)
-            file_path = f"/tmp/incomes_{user_id}_{file_id}.csv"
+            
+            file_extension = file_name.lower().split('.')[-1]
+            file_path = f"/tmp/incomes_{user_id}_{file_id}.{file_extension}"
 
             file_service = FileService()
 
@@ -56,6 +59,8 @@ def process_file(self, file_id: str, user_info: dict, file_name: str, bank_code:
                 parser = TinkoffBankCSVParser()
             elif bank_code == "alfa":
                 parser = AlfaBankCSVParser()
+            elif bank_code == "sber":
+                parser = SberBankPDFParser()
             else:
                 raise ValueError(f"Unsupported bank: {bank_code}")
 
@@ -80,13 +85,15 @@ def process_file(self, file_id: str, user_info: dict, file_name: str, bank_code:
             year = datetime.utcnow().year
             month = datetime.utcnow().month
             s3_key = f"uploads/{user_id}/{year}/{month:02d}/{timestamp}_{file_name}"
+            
+            content_type = "application/pdf" if file_extension == "pdf" else "text/csv"
 
             minio_cli = minio_client.get_client()
             minio_cli.fput_object(
                 bucket_name=MINIO_BUCKET,
                 object_name=s3_key,
                 file_path=file_path,
-                content_type="text/csv"
+                content_type=content_type
             )
 
             logger.info(f"File uploaded to MinIO: {s3_key}")

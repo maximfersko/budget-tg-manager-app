@@ -56,17 +56,24 @@ async def process_bank_selection(callback_query: CallbackQuery, state: FSMContex
 async def process_income_file(message: Message, state: FSMContext, bot: Bot):
     logger.info(message.model_dump())
 
-    if not message.document.mime_type == "text/csv":
-        await message.answer("Error! Please send file with extension .csv")
-        return
-
-    csv_doc = message.document
-    filename = message.document.file_name
-
     user_data = await state.get_data()
     bank_code = user_data.get("bank")
     
-    if bank_code not in ["tinkoff", "alfa"]:
+    mime_type = message.document.mime_type
+    filename = message.document.file_name
+    
+    if bank_code == "sber":
+        if mime_type != "application/pdf":
+            await message.answer("Error! Sberbank requires PDF file")
+            return
+    else:
+        if mime_type != "text/csv":
+            await message.answer("Error! Please send file with extension .csv")
+            return
+
+    csv_doc = message.document
+    
+    if bank_code not in ["tinkoff", "alfa", "sber"]:
         await message.answer("Unknown bank or not supported yet.")
         await state.clear()
         return
