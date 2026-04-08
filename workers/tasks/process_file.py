@@ -1,17 +1,18 @@
 import asyncio
 import os
 from datetime import datetime
+
 from redis.asyncio import Redis
 
 from core.config import MINIO_BUCKET, BOT_TOKEN, REDIS_URL
 from core.logger import logger
-from database.minio_client import minio_client
+from core.minio_client import minio_client
 from database.repo import DBRepository
 from dto.user_dto import UserDto
 from services.csv_alfa_parser_service import AlfaBankCSVParser
 from services.csv_tink_parser_service import TinkoffBankCSVParser
-from services.pdf_sber_parser_service import SberBankPDFParser
 from services.file_service import FileService
+from services.pdf_sber_parser_service import SberBankPDFParser
 from workers.tasks.celery_config import celery_app
 from workers.tasks.notifications import notify_user_file_processed
 

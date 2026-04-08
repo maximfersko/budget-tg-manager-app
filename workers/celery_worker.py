@@ -1,8 +1,7 @@
-import asyncio
-
 from celery.signals import worker_process_init
+
 from core.logger import logger
-from database.minio_client import minio_client
+from core.minio_client import minio_client
 from workers.tasks import celery_app
 
 

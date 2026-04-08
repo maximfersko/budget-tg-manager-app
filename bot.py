@@ -4,14 +4,14 @@ from aiogram import Bot, Dispatcher
 
 from core.config import BOT_TOKEN
 from core.logger import logger
+from core.minio_client import minio_client
+from core.redis_client import redis_client
 from database.engine import create_db
-from database.minio_client import minio_client
-from database.redis_client import redis_client
+from tg_bot.handlers.admin import router as admin_router
 from tg_bot.handlers.commands import router as commands_router
 from tg_bot.handlers.incomes import router as incomes_router
-from tg_bot.handlers.statistics import router as statistics_router
-from tg_bot.handlers.admin import router as admin_router
 from tg_bot.handlers.profile import router as profile_router
+from tg_bot.handlers.statistics import router as statistics_router
 from tg_bot.middlewares.db_middleware import DBMiddleware
 from tg_bot.middlewares.role_middleware import RoleMiddleware
 
