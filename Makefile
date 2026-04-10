@@ -19,6 +19,19 @@ migrate_down:
 migration_history:
 	docker-compose -f docker-compose.local.yaml exec bot alembic history
 
+test:
+	docker-compose -f docker-compose.local.yaml exec bot pytest
+
+test_coverage:
+	docker-compose -f docker-compose.local.yaml exec bot pytest --cov-report=html --cov-report=term
+
+test_verbose:
+	docker-compose -f docker-compose.local.yaml exec bot pytest -vv
+
+setup_test_db:
+	docker-compose -f docker-compose.local.yaml exec db psql -U postgres -c "DROP DATABASE IF EXISTS budget_test_db;"
+	docker-compose -f docker-compose.local.yaml exec db psql -U postgres -c "CREATE DATABASE budget_test_db;"
+
 drop_all_data:
 	docker-compose -f docker-compose.local.yaml exec redis redis-cli FLUSHALL
 	docker-compose -f docker-compose.local.yaml exec db psql -U postgres -d budget_db -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public; GRANT ALL ON SCHEMA public TO postgres; GRANT ALL ON SCHEMA public TO public;"
