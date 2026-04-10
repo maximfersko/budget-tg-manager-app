@@ -1,0 +1,134 @@
+# Secrets / Variables: Settings → Secrets and variables → Actions
+#
+# Secrets (Repository secrets):
+#   BOT_TOKEN, POSTGRES_PASSWORD, DB_URL, REDIS_URL, OPENROUTER_API_KEY,
+#   RABBITMQ_URL, RABBITMQ_PASSWORD, MINIO_ACCESS_KEY, MINIO_SECRET_KEY
+#
+# Variables (Repository variables):
+#   FIRST_ADMIN_ID, POSTGRES_USER, POSTGRES_HOST, POSTGRES_PORT, POSTGRES_DB,
+#   REDIS_HOST, REDIS_PORT, QDRANT_HOST, QDRANT_PORT, LLM_MODEL,
+#   RABBITMQ_USER, RABBITMQ_HOST, RABBITMQ_PORT,
+#   BOT_PORT, FLOWER_PORT,
+#   MINIO_ENDPOINT, MINIO_BUCKET, MINIO_SECURE,
+#   INTERNAL_TRANSFER_KEYWORDS
+#
+# Для job test: POSTGRES_HOST и REDIS_URL должны указывать на localhost
+# (runner подключается к service-контейнерам), например:
+#   POSTGRES_HOST=localhost   REDIS_URL=redis://localhost:6379
+
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  PYTHON_VERSION: "3.11"
+
+jobs:
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    env:
+      BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+      FIRST_ADMIN_ID: ${{ vars.FIRST_ADMIN_ID }}
+      POSTGRES_USER: ${{ vars.POSTGRES_USER }}
+      POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+      POSTGRES_HOST: ${{ vars.POSTGRES_HOST }}
+      POSTGRES_PORT: ${{ vars.POSTGRES_PORT }}
+      POSTGRES_DB: ${{ vars.POSTGRES_DB }}
+      DB_URL: ${{ secrets.DB_URL }}
+      REDIS_URL: ${{ secrets.REDIS_URL }}
+      REDIS_HOST: ${{ vars.REDIS_HOST }}
+      REDIS_PORT: ${{ vars.REDIS_PORT }}
+      QDRANT_HOST: ${{ vars.QDRANT_HOST }}
+      QDRANT_PORT: ${{ vars.QDRANT_PORT }}
+      OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+      LLM_MODEL: ${{ vars.LLM_MODEL }}
+      RABBITMQ_URL: ${{ secrets.RABBITMQ_URL }}
+      RABBITMQ_USER: ${{ vars.RABBITMQ_USER }}
+      RABBITMQ_PASSWORD: ${{ secrets.RABBITMQ_PASSWORD }}
+      RABBITMQ_HOST: ${{ vars.RABBITMQ_HOST }}
+      RABBITMQ_PORT: ${{ vars.RABBITMQ_PORT }}
+      BOT_PORT: ${{ vars.BOT_PORT }}
+      FLOWER_PORT: ${{ vars.FLOWER_PORT }}
+      MINIO_ENDPOINT: ${{ vars.MINIO_ENDPOINT }}
+      MINIO_ACCESS_KEY: ${{ secrets.MINIO_ACCESS_KEY }}
+      MINIO_SECRET_KEY: ${{ secrets.MINIO_SECRET_KEY }}
+      MINIO_BUCKET: ${{ vars.MINIO_BUCKET }}
+      MINIO_SECURE: ${{ vars.MINIO_SECURE }}
+      INTERNAL_TRANSFER_KEYWORDS: ${{ vars.INTERNAL_TRANSFER_KEYWORDS }}
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: ${{ vars.POSTGRES_USER }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+          POSTGRES_DB: budget_test_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ${{ vars.POSTGRES_USER }} -d budget_test_db"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run tests
+        run: pytest
+
+  build:
+    name: Docker build
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image (Dockerfile)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile
+          push: false
+          tags: budget-tg-manager:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build image (production)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.prod
+          push: false
+          tags: budget-tg-manager:ci-prod
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
