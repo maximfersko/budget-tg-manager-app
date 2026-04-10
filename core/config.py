@@ -13,8 +13,33 @@ FIRST_ADMIN_ID = int(_first_admin_raw)
 _db_url_raw = os.getenv("DB_URL")
 DB_URL = (_db_url_raw or "").strip() or None
 
-_redis_url_raw = os.getenv("REDIS_URL")
-REDIS_URL = (_redis_url_raw or "").strip() or None
+
+def _redis_host() -> str:
+    h = (os.getenv("REDIS_HOST") or "").strip()
+    if not h or h.startswith("${"):
+        return "127.0.0.1"
+    return h
+
+
+def _redis_port() -> int:
+    raw = (os.getenv("REDIS_PORT") or "6379").strip()
+    if not raw or raw.startswith("${"):
+        return 6379
+    try:
+        return int(raw)
+    except ValueError:
+        return 6379
+
+
+def _redis_url_resolved() -> str:
+    """REDIS_URL из .env без подстановки (${REDIS_PORT}) в CI/GitHub не раскрывается — собираем из host/port."""
+    raw = (os.getenv("REDIS_URL") or "").strip()
+    if raw and "${" not in raw:
+        return raw
+    return f"redis://{_redis_host()}:{_redis_port()}"
+
+
+REDIS_URL = _redis_url_resolved()
 
 _rabbit_raw = os.getenv("RABBITMQ_URL")
 RABBITMQ_URL = (_rabbit_raw or "").strip() or None
