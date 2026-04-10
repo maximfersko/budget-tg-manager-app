@@ -1,5 +1,8 @@
-run:
-	docker-compose up --build
+local:
+	docker-compose -f docker-compose.local.yaml up --build
+
+prod:
+	docker-compose -f docker-compose.prod.yaml up --build
 
 clean:
 	docker system prune -a

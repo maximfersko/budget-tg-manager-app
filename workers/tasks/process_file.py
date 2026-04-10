@@ -5,6 +5,7 @@ from datetime import datetime
 from redis.asyncio import Redis
 
 from core.config import MINIO_BUCKET, BOT_TOKEN, REDIS_URL
+from core.constants import REDIS_KEY_USER_VERSION
 from core.logger import logger
 from core.minio_client import minio_client
 from database.repo import DBRepository
@@ -15,6 +16,8 @@ from services.file_service import FileService
 from services.pdf_sber_parser_service import SberBankPDFParser
 from workers.tasks.celery_config import celery_app
 from workers.tasks.notifications import notify_user_file_processed
+from database.engine import get_async_session_maker
+from aiogram import Bot
 
 
 @celery_app.task(bind=True, max_retries=3)
@@ -25,7 +28,6 @@ def process_file(self, file_id: str, user_info: dict, file_name: str, bank_code:
         bot = None
         
         try:
-            from database.engine import get_async_session_maker
             worker_session = get_async_session_maker()
             
             user_dto = UserDto(**user_info)
@@ -33,7 +35,6 @@ def process_file(self, file_id: str, user_info: dict, file_name: str, bank_code:
 
             logger.info(f"Processing file {file_name} for user {user_id}, bank: {bank_code}")
 
-            from aiogram import Bot
             bot = Bot(token=BOT_TOKEN)
             
             file_extension = file_name.lower().split('.')[-1]
@@ -70,6 +71,15 @@ def process_file(self, file_id: str, user_info: dict, file_name: str, bank_code:
                     username=user_dto.username
                 )
                 result = await repo.add_operations_batch(user_id, operations, bank_code)
+
+            version_key = REDIS_KEY_USER_VERSION.format(user_id=user_id)
+            new_version = await redis_cli.incr(version_key)
+
+            stats_pattern = f"stats:{user_id}:*"
+            keys_to_delete = await redis_cli.keys(stats_pattern)
+            if keys_to_delete:
+                await redis_cli.delete(*keys_to_delete)
+
 
             logger.info(f"Database update result: {result}")
 

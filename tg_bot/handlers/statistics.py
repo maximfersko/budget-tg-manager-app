@@ -1,14 +1,19 @@
-import re
 from datetime import datetime
+
 from aiogram import Router
 from aiogram.filters import Command, CommandObject
 from aiogram.types import Message
 
 from core.logger import logger
+from database.models import Operation
 from database.repo import DBRepository
+from services.ai_service import AIService
 from services.statistics_service import StatisticsService
+from services.vector_service import VectorService
+from workers.tasks.ai_tasks import process_ai_insight_task
 
 router = Router(name="statistics_handler")
+
 
 def _parse_date_from_mess_args(command: CommandObject) -> (datetime, datetime):
     start_date = None
@@ -26,22 +31,22 @@ def _parse_date_from_mess_args(command: CommandObject) -> (datetime, datetime):
             return None, None
     return start_date, end_date
 
+
 async def stats_logic(message: Message, repo: DBRepository, start_date: datetime, end_date: datetime,
                       categories: list = None):
-    from services.statistics_service import StatisticsService
-    from services.ai_service import AIService
-    from services.vector_service import VectorService
-
     stat_service = StatisticsService()
     ai_service = AIService()
     vector_service = VectorService()
 
-    base_stats = await stat_service.get_base_stat(repo, message.from_user.id, start_date, end_date, categories=categories)
-    
-    from database.models import Operation
+    base_stats = await stat_service.get_base_stat(repo, message.from_user.id, start_date, end_date,
+                                                  categories=categories)
+
+    logger.info(f"Base stats: {base_stats}")
+
     operations: list[Operation] = await repo.get_user_operations(message.from_user.id)
     df_date_filtered = stat_service._filter_statistics_date(operations, start_date, end_date)
-    
+    logger.info(f"Filtered stats: {df_date_filtered}")
+
     summary_text = stat_service.get_summary_for_ai(base_stats, df_date_filtered, is_category_filter=bool(categories))
     if categories:
         summary_text = f"FILTER BY CATEGORIES: {', '.join(categories)}\n" + summary_text
@@ -49,7 +54,6 @@ async def stats_logic(message: Message, repo: DBRepository, start_date: datetime
     old_memories = await vector_service.get_relevant_memories(message.from_user.id, summary_text)
     ai_advice = await ai_service.analyze_spending(summary_text, old_memories)
 
-    from workers.tasks.ai_tasks import process_ai_insight_task
     process_ai_insight_task.delay(
         user_id=message.from_user.id,
         summary_text=summary_text,
@@ -64,12 +68,12 @@ async def stats_logic(message: Message, repo: DBRepository, start_date: datetime
     clean_advice = ai_advice.replace("_", "\\_").replace("*", "\\*").replace("`", "\\`")
     period_str = f" ({start_date.strftime('%d.%m.%Y')} - {end_date.strftime('%d.%m.%Y')})" if start_date else ""
     cat_str = f" по категориям: {', '.join(categories)}" if categories else ""
-    
+
     if categories:
         total_stats = await stat_service.get_base_stat(repo, message.from_user.id, start_date, end_date)
         total_exp = total_stats['sum_expense']
         share = (base_stats['sum_expense'] / total_exp * 100) if total_exp > 0 else 0
-        
+
         response = (
             f"СТАТИСТИКА{period_str}{cat_str}\n\n"
             f"Расходы по категориям: {base_stats['sum_expense']} RUB\n"
@@ -93,8 +97,9 @@ async def stats_logic(message: Message, repo: DBRepository, start_date: datetime
             f"— — — — — — — — —\n"
             f"Совет от ИИ:\n{clean_advice}"
         )
-        
+
     await message.answer(response, parse_mode="Markdown")
+
 
 @router.message(Command("ai"))
 async def handle_ai_command(message: Message, repo: DBRepository, command: CommandObject):
@@ -103,19 +108,19 @@ async def handle_ai_command(message: Message, repo: DBRepository, command: Comma
 
     from services.ai_service import AIService
     ai_service = AIService()
-    
+
     user_categories = await repo.get_unique_raw_categories(message.from_user.id)
-    
+
     intent = await ai_service.parse_user_intent(command.args, categories=user_categories)
     logger.info(f"AI Intent: {intent}")
-    
+
     if intent["action"] == "stats":
         try:
             start_date = datetime.strptime(intent["start_date"], "%Y-%m-%d") if intent["start_date"] else None
             end_date = datetime.strptime(intent["end_date"], "%Y-%m-%d") if intent["end_date"] else None
             if end_date:
                 end_date = end_date.replace(hour=23, minute=59, second=59)
-            
+
             await stats_logic(message, repo, start_date, end_date, categories=intent.get("categories"))
         except Exception as e:
             logger.error(f"Error executing AI intent: {e}")
@@ -124,6 +129,7 @@ async def handle_ai_command(message: Message, repo: DBRepository, command: Comma
         response = await ai_service.analyze_spending(f"User query: {command.args}", user_memories=[])
         await message.answer(f"Ответ ИИ:\n\n{response}")
 
+
 @router.message(Command("stats"))
 async def stats(message: Message, repo: DBRepository, command: CommandObject):
     start_date, end_date = _parse_date_from_mess_args(command)
@@ -131,6 +137,7 @@ async def stats(message: Message, repo: DBRepository, command: CommandObject):
         await message.answer("Формат: DD.MM.YYYY-DD.MM.YYYY")
         return
     await stats_logic(message, repo, start_date, end_date)
+
 
 @router.message(Command("categories"))
 async def categories(message: Message, repo: DBRepository, command: CommandObject):

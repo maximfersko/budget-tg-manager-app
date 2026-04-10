@@ -43,6 +43,20 @@ services:
     volumes:
       - redis_data:/data
 
+  redisinsight:
+    image: redis/redisinsight:latest
+    container_name: bot_redisinsight
+    restart: always
+    environment:
+      - RI_APP_HOST=0.0.0.0
+      - RI_APP_PORT=8001
+    ports:
+      - "8001:8001"
+    volumes:
+      - redisinsight_data:/data
+    depends_on:
+      - redis
+
   rabbitmq:
     image: rabbitmq:management-alpine
     container_name: rabbitmq
@@ -128,13 +142,14 @@ services:
     restart: unless-stopped
     ports:
       - "${QDRANT_EXTERNAL_PORT}:6333"
-      - "${QDRANT_DASHBOARD_EXTERNAL_PORT}:6333"
+      - "6334:6333"
     volumes:
       - qdrant_data:/qdrant/storage
 
 volumes:
   pg_data:
   redis_data:
+  redisinsight_data:
   rabbitmq_data:
   minio_data:
   qdrant_data:

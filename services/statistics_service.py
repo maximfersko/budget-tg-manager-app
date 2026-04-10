@@ -1,3 +1,4 @@
+import json
 import re
 from datetime import datetime, timedelta
 from typing import Optional, List
@@ -5,9 +6,11 @@ from typing import Optional, List
 import pandas as pd
 from sqlalchemy import BigInteger
 
+from core.constants import  REDIS_KEY_USER_VERSION, CACHE_TTL_STATS
 from core.logger import logger
 from database.models import Operation
 from database.repo import DBRepository
+from core.redis_client import redis_client
 
 pd.set_option('display.max_rows', 100)
 pd.set_option('display.max_columns', None)
@@ -60,6 +63,16 @@ class StatisticsService:
                 'expense_count': 0, 'internal_transfers_excluded': 0
             }
 
+        version_key = REDIS_KEY_USER_VERSION.format(user_id=user_id)
+        version = await redis_client.get(version_key) or "0"
+
+        cache_key = f"stats:{user_id}:v{version}:base"
+
+        cached_data = await redis_client.get(cache_key)
+        if cached_data:
+            return json.loads(cached_data)
+
+
         if end_date is None:
             end_date = datetime.now()
         if start_date is None:
@@ -108,6 +121,9 @@ class StatisticsService:
             'expense_count': len(expense_df),
             'internal_transfers_excluded': len(df) - len(df_filtered)
         }
+
+        await redis_client.set(cache_key, json.dumps(result), expire=CACHE_TTL_STATS)
+
         return result
 
     async def get_categories_stat(self, repo: DBRepository, user_id: BigInteger, start_date=None, end_date=None) -> dict:

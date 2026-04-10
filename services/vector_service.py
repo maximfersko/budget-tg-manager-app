@@ -5,6 +5,7 @@ from typing import List
 from core.qdrant_client import qdrant_manager
 from core.logger import logger
 
+
 class VectorService:
 
     def __init__(self):
