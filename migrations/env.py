@@ -19,6 +19,9 @@ sys.path.append(os.path.dirname(os.path.dirname(__file__)))
 from core.config import DB_URL
 from database.models import Base
 
+if not DB_URL:
+    raise ValueError("DB_URL is not set; required for Alembic migrations")
+
 config.set_main_option("sqlalchemy.url", DB_URL)
 target_metadata = Base.metadata
 

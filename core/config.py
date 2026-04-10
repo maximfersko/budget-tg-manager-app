@@ -10,9 +10,14 @@ if not BOT_TOKEN:
 _first_admin_raw = (os.getenv("FIRST_ADMIN_ID") or "751575780").strip()
 FIRST_ADMIN_ID = int(_first_admin_raw)
 
-DB_URL = os.getenv("DB_URL")
-REDIS_URL = os.getenv("REDIS_URL")
-RABBITMQ_URL = os.getenv("RABBITMQ_URL")
+_db_url_raw = os.getenv("DB_URL")
+DB_URL = (_db_url_raw or "").strip() or None
+
+_redis_url_raw = os.getenv("REDIS_URL")
+REDIS_URL = (_redis_url_raw or "").strip() or None
+
+_rabbit_raw = os.getenv("RABBITMQ_URL")
+RABBITMQ_URL = (_rabbit_raw or "").strip() or None
 
 MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT", "minio:9000")
 MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY", "minioadmin")
