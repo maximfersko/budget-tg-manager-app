@@ -26,4 +26,5 @@ class RedisClient:
     async def exists(self, key):
         return await self.redis.exists(key)
 
+
 redis_client = RedisClient()

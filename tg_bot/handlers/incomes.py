@@ -11,9 +11,11 @@ from tg_bot.keyboards.inline import get_banks_keyboard
 
 router = Router(name="incomes_handler")
 
+
 class IncomeStates(StatesGroup):
     waiting_for_bank = State()
     waiting_for_document = State()
+
 
 @router.message(Command("incomes"))
 async def incomes(message: Message, state: FSMContext):
@@ -23,11 +25,6 @@ async def incomes(message: Message, state: FSMContext):
     )
     await state.set_state(IncomeStates.waiting_for_bank)
 
-@router.message(Command("test"))
-async def test(message: Message, state: FSMContext):
-    from workers.tasks.notifications import task_test
-    task = task_test.apply_async(args=[message.from_user.id])
-    await message.answer(f"Task sent to Celery queue\nTask ID: {task.id}")
 
 @router.callback_query(IncomeStates.waiting_for_bank, F.data.startswith(BANK_PREFIX))
 async def process_bank_selection(callback_query: CallbackQuery, state: FSMContext):
@@ -38,11 +35,12 @@ async def process_bank_selection(callback_query: CallbackQuery, state: FSMContex
     )
     await state.set_state(IncomeStates.waiting_for_document)
 
+
 @router.message(IncomeStates.waiting_for_document, F.document)
 async def process_income_file(message: Message, state: FSMContext, bot: Bot):
     user_data = await state.get_data()
     bank_code = user_data.get("bank")
-    
+
     mime_type = message.document.mime_type
     filename = message.document.file_name
 

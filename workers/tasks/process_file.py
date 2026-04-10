@@ -26,24 +26,24 @@ def process_file(self, file_id: str, user_info: dict, file_name: str, bank_code:
         file_path = None
         redis_cli = None
         bot = None
-        
+
         try:
             worker_session = get_async_session_maker()
-            
+
             user_dto = UserDto(**user_info)
             user_id = user_dto.user_id
 
             logger.info(f"Processing file {file_name} for user {user_id}, bank: {bank_code}")
 
             bot = Bot(token=BOT_TOKEN)
-            
+
             file_extension = file_name.lower().split('.')[-1]
             file_path = f"/tmp/incomes_{user_id}_{file_id}.{file_extension}"
 
             file_service = FileService()
             file_info = await bot.get_file(file_id)
             await bot.download_file(file_info.file_path, destination=file_path)
-            
+
             f_hash = file_service.calculate_hash(file_path)
             cache_key = f'file:hash:{f_hash}'
 
@@ -80,7 +80,6 @@ def process_file(self, file_id: str, user_info: dict, file_name: str, bank_code:
             if keys_to_delete:
                 await redis_cli.delete(*keys_to_delete)
 
-
             logger.info(f"Database update result: {result}")
 
             timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
@@ -113,7 +112,7 @@ def process_file(self, file_id: str, user_info: dict, file_name: str, bank_code:
                     os.remove(file_path)
                 return {"status": "failed", "error": str(e)}
             raise self.retry(exc=e, countdown=60 * (2 ** self.request.retries))
-        
+
         finally:
             if redis_cli: await redis_cli.aclose()
             if bot: await bot.session.close()

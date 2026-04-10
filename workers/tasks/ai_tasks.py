@@ -4,6 +4,7 @@ from services.ai_service import AIService
 from services.vector_service import VectorService
 from workers.tasks.celery_config import celery_app
 
+
 @celery_app.task(name="tasks.ai.process_insight")
 def process_ai_insight_task(user_id: int, summary_text: str, metadata: dict = None):
     async def _async_task():
