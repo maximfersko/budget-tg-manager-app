@@ -1,5 +1,7 @@
 from qdrant_client import QdrantClient
 from core.config import QDRANT_HOST, QDRANT_PORT
+from qdrant_client.http import models
+
 
 class QdrantManager:
     def __init__(self):
@@ -10,7 +12,6 @@ class QdrantManager:
         self._init_collection()
 
     def _init_collection(self):
-        from qdrant_client.http import models
         collections = self.client.get_collections().collections
         exists = any(c.name == self.collection_name for c in collections)
         

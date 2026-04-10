@@ -32,7 +32,6 @@ def _redis_port() -> int:
 
 
 def _redis_url_resolved() -> str:
-    """REDIS_URL из .env без подстановки (${REDIS_PORT}) в CI/GitHub не раскрывается — собираем из host/port."""
     raw = (os.getenv("REDIS_URL") or "").strip()
     if raw and "${" not in raw:
         return raw
