@@ -7,7 +7,8 @@ BOT_TOKEN = os.getenv("BOT_TOKEN")
 if not BOT_TOKEN:
     raise ValueError("Error: BOT_TOKEN not found in .env!")
 
-FIRST_ADMIN_ID = int(os.getenv("FIRST_ADMIN_ID", "751575780"))
+_first_admin_raw = (os.getenv("FIRST_ADMIN_ID") or "751575780").strip()
+FIRST_ADMIN_ID = int(_first_admin_raw)
 
 DB_URL = os.getenv("DB_URL")
 REDIS_URL = os.getenv("REDIS_URL")
@@ -29,4 +30,5 @@ OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 LLM_MODEL = os.getenv("LLM_MODEL", "deepseek/deepseek-chat")
 
 QDRANT_HOST = os.getenv("QDRANT_HOST", "qdrant")
-QDRANT_PORT = int(os.getenv("QDRANT_PORT", 6333))
+_qdrant_port_raw = (os.getenv("QDRANT_PORT") or "6333").strip()
+QDRANT_PORT = int(_qdrant_port_raw)
