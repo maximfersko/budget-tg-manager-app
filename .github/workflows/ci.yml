@@ -1,21 +1,3 @@
-# Secrets / Variables: Settings → Secrets and variables → Actions
-#
-# Secrets (Repository secrets):
-#   BOT_TOKEN, POSTGRES_PASSWORD, DB_URL, REDIS_URL, OPENROUTER_API_KEY,
-#   RABBITMQ_URL, RABBITMQ_PASSWORD, MINIO_ACCESS_KEY, MINIO_SECRET_KEY
-#
-# Variables (Repository variables):
-#   FIRST_ADMIN_ID, POSTGRES_USER, POSTGRES_HOST, POSTGRES_PORT, POSTGRES_DB,
-#   REDIS_HOST, REDIS_PORT, QDRANT_HOST, QDRANT_PORT, LLM_MODEL,
-#   RABBITMQ_USER, RABBITMQ_HOST, RABBITMQ_PORT,
-#   BOT_PORT, FLOWER_PORT,
-#   MINIO_ENDPOINT, MINIO_BUCKET, MINIO_SECURE,
-#   INTERNAL_TRANSFER_KEYWORDS
-#
-# Для job test: POSTGRES_HOST и REDIS_URL должны указывать на localhost
-# (runner подключается к service-контейнерам), например:
-#   POSTGRES_HOST=localhost   REDIS_URL=redis://localhost:6379
-
 name: CI
 
 on:
