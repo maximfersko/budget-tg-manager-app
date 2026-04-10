@@ -121,8 +121,6 @@ class TestStatisticsService:
             start_date=datetime(2026, 4, 1),
             end_date=datetime(2026, 4, 30)
         )
-        
-        # avg_expense = total_expense / expense_count = 32000 / 7
         expected_avg = round(32000.0 / 7, 2)
         assert stats["avg_expense"] == expected_avg
     
@@ -289,8 +287,6 @@ class TestStatisticsServiceEdgeCases:
             start_date=datetime(2026, 4, 30),
             end_date=datetime(2026, 4, 1)
         )
-        
-        # Should return empty stats
         assert stats["transactions_count"] == 0
     
     @pytest.mark.asyncio
@@ -320,8 +316,6 @@ class TestStatisticsServiceAutoDateRange:
     ):
         """Test auto date range when operations exist in last 30 days."""
         service = StatisticsService()
-        
-        # Add recent operation
         recent_op = Operation(
             user_id=test_user.tg_id,
             amount=-1000.0,
@@ -334,8 +328,6 @@ class TestStatisticsServiceAutoDateRange:
         )
         repo.session.add(recent_op)
         await repo.session.commit()
-        
-        # Call without dates - should use last 30 days
         stats = await service.get_base_stat(repo=repo, user_id=test_user.tg_id)
         
         assert stats["transactions_count"] == 1
@@ -347,8 +339,6 @@ class TestStatisticsServiceAutoDateRange:
     ):
         """Test auto date range when all operations are older than 30 days."""
         service = StatisticsService()
-        
-        # Add old operation (3 months ago)
         old_date = datetime.now() - timedelta(days=90)
         old_op = Operation(
             user_id=test_user.tg_id,
@@ -362,8 +352,6 @@ class TestStatisticsServiceAutoDateRange:
         )
         repo.session.add(old_op)
         await repo.session.commit()
-        
-        # Should use month of last operation
         stats = await service.get_base_stat(repo=repo, user_id=test_user.tg_id)
         
         assert stats["transactions_count"] == 1
@@ -407,8 +395,6 @@ class TestStatisticsServiceInternalTransfers:
             start_date=datetime.now() - timedelta(days=1),
             end_date=datetime.now() + timedelta(days=1)
         )
-        
-        # All should be filtered as internal transfers
         assert stats["internal_transfers_excluded"] == 3
         assert stats["sum_income"] == 0
     
@@ -418,13 +404,11 @@ class TestStatisticsServiceInternalTransfers:
     ):
         """Test that keyword matching only works for transfer categories."""
         service = StatisticsService()
-        
-        # Same keyword but different category - should NOT be filtered
         op = Operation(
             user_id=test_user.tg_id,
             amount=-1000.0,
             is_income=False,
-            raw_category="Продукты",  # Not a transfer category
+            raw_category="Продукты",
             description="Store owned by Максим Б",
             date=datetime.now(),
             bank_name="test",
@@ -439,8 +423,6 @@ class TestStatisticsServiceInternalTransfers:
             start_date=datetime.now() - timedelta(days=1),
             end_date=datetime.now() + timedelta(days=1)
         )
-        
-        # Should NOT be filtered
         assert stats["internal_transfers_excluded"] == 0
         assert stats["sum_expense"] == 1000.0
     
@@ -474,8 +456,6 @@ class TestStatisticsServiceInternalTransfers:
             start_date=datetime.now() - timedelta(days=1),
             end_date=datetime.now() + timedelta(days=1)
         )
-        
-        # All 3 should be filtered
         assert stats["internal_transfers_excluded"] == 3
 
 
@@ -509,8 +489,6 @@ class TestStatisticsServiceCategoryFiltering:
             repo.session.add(op)
         
         await repo.session.commit()
-        
-        # Filter by 2 categories
         stats = await service.get_base_stat(
             repo=repo,
             user_id=test_user.tg_id,
@@ -579,8 +557,6 @@ class TestStatisticsServiceCategoryFiltering:
             repo.session.add(op)
         
         await repo.session.commit()
-        
-        # Filter by partial match "Продукты"
         stats = await service.get_base_stat(
             repo=repo,
             user_id=test_user.tg_id,
@@ -601,8 +577,6 @@ class TestStatisticsServiceGetCategoriesStat:
     ):
         """Test category percentages when total is zero (all internal transfers)."""
         service = StatisticsService()
-        
-        # Only internal transfers
         op = Operation(
             user_id=test_user.tg_id,
             amount=5000.0,
@@ -622,8 +596,6 @@ class TestStatisticsServiceGetCategoriesStat:
             start_date=datetime.now() - timedelta(days=1),
             end_date=datetime.now() + timedelta(days=1)
         )
-        
-        # Should return empty categories
         assert categories["top_expense_categories"] == {}
         assert categories["top_income_categories"] == {}
     
@@ -633,8 +605,6 @@ class TestStatisticsServiceGetCategoriesStat:
     ):
         """Test that only top 10 categories are returned."""
         service = StatisticsService()
-        
-        # Create 15 different expense categories
         for i in range(15):
             op = Operation(
                 user_id=test_user.tg_id,
@@ -656,10 +626,7 @@ class TestStatisticsServiceGetCategoriesStat:
             start_date=datetime.now() - timedelta(days=1),
             end_date=datetime.now() + timedelta(days=1)
         )
-        
-        # Should return only top 10
         assert len(categories["top_expense_categories"]) == 10
-        # Should be sorted by amount descending
         amounts = [v["amount"] for v in categories["top_expense_categories"].values()]
         assert amounts == sorted(amounts, reverse=True)
 
@@ -852,8 +819,6 @@ class TestStatisticsServiceDataIntegrity:
     ):
         """Test category with both income and expense operations."""
         service = StatisticsService()
-        
-        # Income in "Прочее"
         op1 = Operation(
             user_id=test_user.tg_id,
             amount=5000.0,
@@ -864,7 +829,6 @@ class TestStatisticsServiceDataIntegrity:
             bank_name="test",
             currency="RUB"
         )
-        # Expense in "Прочее"
         op2 = Operation(
             user_id=test_user.tg_id,
             amount=-3000.0,
@@ -884,8 +848,6 @@ class TestStatisticsServiceDataIntegrity:
             start_date=datetime.now() - timedelta(days=1),
             end_date=datetime.now() + timedelta(days=1)
         )
-        
-        # Should appear in both income and expense categories
         assert "Прочее" in categories["top_income_categories"]
         assert "Прочее" in categories["top_expense_categories"]
         assert categories["top_income_categories"]["Прочее"]["amount"] == 5000.0
@@ -900,8 +862,6 @@ class TestStatisticsServiceDataIntegrity:
         
         start = datetime(2026, 4, 1, 0, 0, 0)
         end = datetime(2026, 4, 30, 23, 59, 59)
-        
-        # Operation exactly at start
         op1 = Operation(
             user_id=test_user.tg_id,
             amount=-1000.0,
@@ -912,7 +872,6 @@ class TestStatisticsServiceDataIntegrity:
             bank_name="test",
             currency="RUB"
         )
-        # Operation exactly at end
         op2 = Operation(
             user_id=test_user.tg_id,
             amount=-2000.0,
@@ -923,7 +882,6 @@ class TestStatisticsServiceDataIntegrity:
             bank_name="test",
             currency="RUB"
         )
-        # Operation just before start
         op3 = Operation(
             user_id=test_user.tg_id,
             amount=-500.0,
@@ -934,7 +892,6 @@ class TestStatisticsServiceDataIntegrity:
             bank_name="test",
             currency="RUB"
         )
-        # Operation just after end
         op4 = Operation(
             user_id=test_user.tg_id,
             amount=-500.0,

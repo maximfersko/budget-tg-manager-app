@@ -6,6 +6,7 @@ from typing import Optional, List
 import pandas as pd
 from sqlalchemy import BigInteger
 
+from core import config
 from core.constants import REDIS_KEY_USER_VERSION, CACHE_TTL_STATS
 from core.logger import logger
 from database.models import Operation
@@ -15,8 +16,6 @@ from core.redis_client import redis_client
 pd.set_option('display.max_rows', 100)
 pd.set_option('display.max_columns', None)
 
-from core.config import INTERNAL_TRANSFER_KEYWORDS
-
 
 class StatisticsService:
 
@@ -25,7 +24,7 @@ class StatisticsService:
         description = str(row.get('description', '')).lower()
         if category not in ['переводы', 'пополнения', 'пополнение']:
             return False
-        for keyword in INTERNAL_TRANSFER_KEYWORDS:
+        for keyword in config.INTERNAL_TRANSFER_KEYWORDS:
             if keyword in description:
                 return True
         return False
@@ -67,12 +66,6 @@ class StatisticsService:
         version_key = REDIS_KEY_USER_VERSION.format(user_id=user_id)
         version = await redis_client.get(version_key) or "0"
 
-        cache_key = f"stats:{user_id}:v{version}:base"
-
-        cached_data = await redis_client.get(cache_key)
-        if cached_data:
-            return json.loads(cached_data)
-
         if end_date is None:
             end_date = datetime.now()
         if start_date is None:
@@ -86,6 +79,16 @@ class StatisticsService:
                 end_date = (start_date + timedelta(days=32)).replace(day=1) - timedelta(seconds=1)
             else:
                 start_date = temp_start
+
+        cat_sig = ",".join(sorted(categories)) if categories else ""
+        cache_key = (
+            f"stats:{user_id}:v{version}:base:"
+            f"{start_date.isoformat()}:{end_date.isoformat()}:{cat_sig}"
+        )
+
+        cached_data = await redis_client.get(cache_key)
+        if cached_data:
+            return json.loads(cached_data)
 
         df = self._filter_statistics_date(operations, start_date, end_date)
 

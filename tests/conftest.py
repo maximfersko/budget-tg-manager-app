@@ -60,9 +60,10 @@ async def redis_client():
     await client.connect()
     
     if client.redis:
-        keys = await client.redis.keys("test:*")
-        if keys:
-            await client.redis.delete(*keys)
+        for pattern in ("test:*", "stats:*", "user:*:version"):
+            keys = await client.redis.keys(pattern)
+            if keys:
+                await client.redis.delete(*keys)
     
     yield client
     
