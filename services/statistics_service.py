@@ -9,9 +9,9 @@ from sqlalchemy import BigInteger
 from core import config
 from core.constants import REDIS_KEY_USER_VERSION, CACHE_TTL_STATS
 from core.logger import logger
+from core.redis_client import redis_client
 from database.models import Operation
 from database.repo import DBRepository
-from core.redis_client import redis_client
 
 pd.set_option('display.max_rows', 100)
 pd.set_option('display.max_columns', None)
@@ -86,8 +86,11 @@ class StatisticsService:
             f"{start_date.isoformat()}:{end_date.isoformat()}:{cat_sig}"
         )
 
+        logger.info(f"cache stat info - {cache_key}")
         cached_data = await redis_client.get(cache_key)
         if cached_data:
+            logger.info(f"cache data in key {cache_key} - {cached_data}")
+            logger.info(f"cache stat info - {cache_key}")
             return json.loads(cached_data)
 
         df = self._filter_statistics_date(operations, start_date, end_date)

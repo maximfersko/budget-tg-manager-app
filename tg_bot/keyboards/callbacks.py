@@ -8,7 +8,6 @@ OPERATION_PREFIX = "op_"
 # Banks
 BANK_TINKOFF = f"{BANK_PREFIX}tinkoff"
 BANK_ALFA = f"{BANK_PREFIX}alfa"
-BANK_SBER = f"{BANK_PREFIX}sber"
 
 # Statistics periods
 STATS_MONTH = f"{STATS_PREFIX}month"

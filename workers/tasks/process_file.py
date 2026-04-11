@@ -13,7 +13,6 @@ from dto.user_dto import UserDto
 from services.csv_alfa_parser_service import AlfaBankCSVParser
 from services.csv_tink_parser_service import TinkoffBankCSVParser
 from services.file_service import FileService
-from services.pdf_sber_parser_service import SberBankPDFParser
 from workers.tasks.celery_config import celery_app
 from workers.tasks.notifications import notify_user_file_processed
 from database.engine import get_async_session_maker
@@ -55,8 +54,6 @@ def process_file(self, file_id: str, user_info: dict, file_name: str, bank_code:
                 parser = TinkoffBankCSVParser()
             elif bank_code == "alfa":
                 parser = AlfaBankCSVParser()
-            elif bank_code == "sber":
-                parser = SberBankPDFParser()
             else:
                 raise ValueError(f"Unsupported bank: {bank_code}")
 

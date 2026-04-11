@@ -44,10 +44,7 @@ async def process_income_file(message: Message, state: FSMContext, bot: Bot):
     mime_type = message.document.mime_type
     filename = message.document.file_name
 
-    if bank_code == "sber" and mime_type != "application/pdf":
-        await message.answer("Error: Sberbank requires a PDF file")
-        return
-    elif bank_code != "sber" and mime_type != "text/csv":
+    if mime_type != "text/csv":
         await message.answer("Error: Please send a .csv file")
         return
 

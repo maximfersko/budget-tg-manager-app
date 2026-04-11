@@ -34,6 +34,8 @@ def _parse_date_from_mess_args(command: CommandObject) -> (datetime, datetime):
 
 async def stats_logic(message: Message, repo: DBRepository, start_date: datetime, end_date: datetime,
                       categories: list = None):
+    logger.info(
+        f"Stats handler started for {message.chat.id}: args - {message.text}, {start_date}, {end_date}, {categories}")
     stat_service = StatisticsService()
     ai_service = AIService()
     vector_service = VectorService()
@@ -106,12 +108,12 @@ async def handle_ai_command(message: Message, repo: DBRepository, command: Comma
     if not command.args:
         return await message.answer("Напиши запрос после /ai. Пример: /ai статистика за неделю")
 
-    from services.ai_service import AIService
     ai_service = AIService()
 
     user_categories = await repo.get_unique_raw_categories(message.from_user.id)
 
     intent = await ai_service.parse_user_intent(command.args, categories=user_categories)
+
     logger.info(f"AI Intent: {intent}")
 
     if intent["action"] == "stats":

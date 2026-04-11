@@ -1,7 +1,7 @@
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 from tg_bot.keyboards.callbacks import (
-    BANK_TINKOFF, BANK_ALFA, BANK_SBER,
+    BANK_TINKOFF, BANK_ALFA,
     STATS_MONTH, STATS_YEAR, STATS_CUSTOM,
     OP_EDIT, OP_DELETE, OP_CANCEL
 )
@@ -13,9 +13,6 @@ def get_banks_keyboard() -> InlineKeyboardMarkup:
             InlineKeyboardButton(text="T-Bank", callback_data=BANK_TINKOFF),
             InlineKeyboardButton(text="Alfa-Bank", callback_data=BANK_ALFA),
         ],
-        [
-            InlineKeyboardButton(text="Sberbank", callback_data=BANK_SBER)
-        ]
     ])
 
 
