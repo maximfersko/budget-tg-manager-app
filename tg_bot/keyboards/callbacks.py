@@ -1,5 +1,3 @@
-"""Callback data constants for inline keyboards."""
-
 # Prefixes
 BANK_PREFIX = "bank_"
 STATS_PREFIX = "stats_"
