@@ -10,6 +10,8 @@ services:
     container_name: tg_bot
     restart: always
     depends_on:
+      vault:
+        condition: service_healthy
       db:
         condition: service_healthy
       redis:
@@ -44,6 +46,48 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+
+  vault:
+    image: hashicorp/vault:1.15
+    container_name: vault
+    restart: always
+    cap_add:
+      - IPC_LOCK
+    env_file:
+      - .env
+    environment:
+      - VAULT_CONFIG_DIR=/vault/config
+      - VAULT_ADDR=http://127.0.0.1:8200
+    ports:
+      - "127.0.0.1:${VAULT_EXTERNAL_PORT:-8200}:8200"
+      - "127.0.0.1:${VAULT_CLUSTER_EXTERNAL_PORT:-8201}:8201"
+    volumes:
+      - ./vault/config:/vault/config:ro
+      - ./vault/certs:/vault/certs:ro
+      - vault_data:/vault/data
+      - ./logs/vault:/vault/logs:rw
+    networks:
+      - backend
+    healthcheck:
+      test: [ "CMD-SHELL", "vault status || if [ $$? -eq 2 ]; then exit 0; else exit 1; fi" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 512M
+        reservations:
+          cpus: '0.5'
+          memory: 256M
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    command: server
 
   db:
     image: postgres:15-alpine
@@ -187,6 +231,8 @@ services:
         condition: service_started
       db:
         condition: service_healthy
+      vault:
+        condition: service_healthy
     env_file:
       - .env
     volumes:
@@ -311,6 +357,8 @@ volumes:
   rabbitmq_data:
     driver: local
   minio_data:
+    driver: local
+  vault_data:
     driver: local
 
 networks:
