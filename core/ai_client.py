@@ -1,11 +1,11 @@
-import os
 from openai import AsyncOpenAI
+from core.config import OPENROUTER_API_KEY, LLM_MODEL, OPENROUTER_BASE_URL
 
 class AIClient:
     def __init__(self):
-        self.api_key = os.getenv("OPENROUTER_API_KEY")
-        self.base_url = "https://openrouter.ai/api/v1"
-        self.model = os.getenv("LLM_MODEL", "google/gemini-flash-1.5")
+        self.api_key = OPENROUTER_API_KEY
+        self.base_url = OPENROUTER_BASE_URL
+        self.model = LLM_MODEL
         
         self.client = AsyncOpenAI(
             api_key=self.api_key,

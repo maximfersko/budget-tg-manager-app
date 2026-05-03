@@ -1,14 +1,14 @@
 import json
 import httpx
 from datetime import datetime
-from core.config import OPENROUTER_API_KEY, LLM_MODEL
+from core.config import OPENROUTER_API_KEY, LLM_MODEL, OPENROUTER_BASE_URL
 from core.logger import logger
 
 class AIService:
 
     def __init__(self):
         self.api_key = OPENROUTER_API_KEY
-        self.base_url = "https://openrouter.ai/api/v1/chat/completions"
+        self.base_url = f"{OPENROUTER_BASE_URL}/chat/completions"
         self.headers = {
             "Authorization": f"Bearer {self.api_key}",
             "HTTP-Referer": "https://github.com/maximfersko/budget-tg-manager-app",
