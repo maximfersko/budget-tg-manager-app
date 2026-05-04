@@ -148,12 +148,11 @@ services:
     environment:
       - RABBITMQ_DEFAULT_USER=${RABBITMQ_USER}
       - RABBITMQ_DEFAULT_PASS=${RABBITMQ_PASSWORD}
-      - RABBITMQ_VM_MEMORY_HIGH_WATERMARK=300MB
-      - RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS=-rabbit vm_memory_high_watermark 0.3
     ports:
       - "127.0.0.1:${RABBITMQ_EXTERNAL_PORT}:${RABBITMQ_PORT}"
     volumes:
       - rabbitmq_data:/var/lib/rabbitmq
+      - ./rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
     networks:
       - backend
     healthcheck:
