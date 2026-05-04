@@ -219,8 +219,8 @@ services:
     env_file:
       - .env
     ports:
-      - "127.0.0.1:${MINIO_EXTERNAL_PORT}:${MINIO_PORT}"
-      - "127.0.0.1:${MINIO_CONSOLE_EXTERNAL_PORT}:${MINIO_CONSOLE_PORT}"
+      - "0.0.0.0:${MINIO_EXTERNAL_PORT}:${MINIO_PORT}"
+      - "0.0.0.0:${MINIO_CONSOLE_EXTERNAL_PORT}:${MINIO_CONSOLE_PORT}"
     environment:
       - MINIO_ROOT_USER=${MINIO_ACCESS_KEY}
       - MINIO_ROOT_PASSWORD=${MINIO_SECRET_KEY}
