@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   bot:
     build:
@@ -143,6 +141,7 @@ services:
     image: rabbitmq:3.12-alpine
     container_name: rabbitmq
     restart: always
+    user: "999:999"
     env_file:
       - .env
     environment:
@@ -156,11 +155,11 @@ services:
     networks:
       - backend
     healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "ping"]
-      interval: 60s
+      test: ["CMD", "rabbitmq-diagnostics", "check_running"]
+      interval: 30s
       timeout: 10s
-      retries: 3
-      start_period: 60s
+      retries: 5
+      start_period: 90s
     deploy:
       resources:
         limits:
