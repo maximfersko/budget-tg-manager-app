@@ -57,6 +57,7 @@ INTERNAL_TRANSFER_KEYWORDS = [
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 LLM_MODEL = os.getenv("LLM_MODEL", "deepseek/deepseek-chat")
+OPENROUTER_BASE_URL = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
 
 QDRANT_HOST = os.getenv("QDRANT_HOST", "qdrant")
 _qdrant_port_raw = (os.getenv("QDRANT_PORT") or "6333").strip()

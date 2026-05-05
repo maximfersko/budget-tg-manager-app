@@ -49,9 +49,9 @@ services:
     restart: always
     environment:
       - RI_APP_HOST=0.0.0.0
-      - RI_APP_PORT=8001
+      - RI_APP_PORT=${REDISINSIGHT_PORT:-8001}
     ports:
-      - "8001:8001"
+      - "${REDISINSIGHT_EXTERNAL_PORT:-8001}:${REDISINSIGHT_PORT:-8001}"
     volumes:
       - redisinsight_data:/data
     depends_on:
@@ -141,8 +141,8 @@ services:
     container_name: qdrant
     restart: unless-stopped
     ports:
-      - "${QDRANT_EXTERNAL_PORT}:6333"
-      - "6334:6333"
+      - "${QDRANT_EXTERNAL_PORT}:${QDRANT_PORT}"
+      - "${QDRANT_DASHBOARD_EXTERNAL_PORT}:${QDRANT_PORT}"
     volumes:
       - qdrant_data:/qdrant/storage
 
