@@ -1,4 +1,4 @@
-name: Deploy to Production
+name: Deploy
 
 on:
   push:
@@ -10,15 +10,17 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-      - name: Deploy
-        uses: appleboy/ssh-action@v1.0.3
+      - uses: appleboy/ssh-action@v1.0.3
         with:
           host: 46.226.165.102
           username: root
           password: ${{ secrets.SERVER_PASSWORD }}
           script: |
             cd /root/budget-tg-manager-app
-            git pull
-            docker compose -f docker-compose.prod.yaml down
-            docker compose -f docker-compose.prod.yaml up -d --build
+            docker compose -f docker-compose.prod.yaml exec -T db pg_dump -U postgres budget_db | gzip > backup_$(date +%Y%m%d_%H%M%S).sql.gz
+            git pull origin main
+            docker compose -f docker-compose.prod.yaml exec -T bot alembic upgrade head || true
+            docker compose -f docker-compose.prod.yaml up -d --build --remove-orphans
+            docker image prune -f
+            find . -name "backup_*.sql.gz" -mtime +7 -delete || true
             docker compose -f docker-compose.prod.yaml ps
