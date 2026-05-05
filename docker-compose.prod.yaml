@@ -252,7 +252,7 @@ services:
     container_name: qdrant
     restart: always
     ports:
-      - "127.0.0.1:${QDRANT_EXTERNAL_PORT}:${QDRANT_PORT}"
+      - "0.0.0.0:${QDRANT_EXTERNAL_PORT}:${QDRANT_PORT}"
     volumes:
       - qdrant_data:/qdrant/storage
     networks:
