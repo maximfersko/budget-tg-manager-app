@@ -141,6 +141,34 @@ async def stats(message: Message, repo: DBRepository, command: CommandObject):
     await stats_logic(message, repo, start_date, end_date)
 
 
+@router.message(Command("stats_simple"))
+async def stats_simple(message: Message, repo: DBRepository, command: CommandObject):
+    start_date, end_date = _parse_date_from_mess_args(command)
+    if command.args and (start_date is None or end_date is None):
+        await message.answer("Формат: DD.MM.YYYY-DD.MM.YYYY")
+        return
+    
+    stat_service = StatisticsService()
+    base_stats = await stat_service.get_base_stat(repo, message.from_user.id, start_date, end_date)
+    
+    period_str = f" ({start_date.strftime('%d.%m.%Y')} - {end_date.strftime('%d.%m.%Y')})" if start_date else ""
+    
+    response = (
+        f"СТАТИСТИКА{period_str}\n\n"
+        f"Зарплата: {base_stats['salary']} RUB\n"
+        f"Доходы: {base_stats['sum_income']} RUB\n"
+        f"Расходы: {base_stats['sum_expense']} RUB\n"
+        f"Баланс: {base_stats['balance']} RUB\n"
+        f"Средний расход: {base_stats['avg_expense']} RUB\n\n"
+        f"Транзакций: {base_stats['transactions_count']}\n"
+        f"Доходов: {base_stats['income_count']}\n"
+        f"Расходов: {base_stats['expense_count']}\n"
+        f"Исключено внутренних переводов: {base_stats['internal_transfers_excluded']}"
+    )
+    
+    await message.answer(response)
+
+
 @router.message(Command("categories"))
 async def categories(message: Message, repo: DBRepository, command: CommandObject):
     stat_service = StatisticsService()
