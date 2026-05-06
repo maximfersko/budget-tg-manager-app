@@ -3,6 +3,12 @@ import httpx
 from datetime import datetime
 from core.config import OPENROUTER_API_KEY, LLM_MODEL, OPENROUTER_BASE_URL
 from core.logger import logger
+from core.prompts import (
+    INTENT_PARSER_SYSTEM_PROMPT,
+    SPENDING_ANALYSIS_SYSTEM_PROMPT,
+    INSIGHT_EXTRACTION_SYSTEM_PROMPT,
+    RAG_QUERY_SYSTEM_PROMPT
+)
 
 class AIService:
 
@@ -38,19 +44,9 @@ class AIService:
         current_date = datetime.now().strftime("%Y-%m-%d")
         cats_str = ", ".join(categories) if categories else "No categories available"
         
-        system_prompt = (
-            f"You are a command dispatcher for a financial bot. Today's date is {current_date}.\n"
-            f"Available database categories: {cats_str}\n\n"
-            "Analyze the user message and extract: action, date range, and a LIST of relevant categories.\n"
-            "DATE RANGE RULES:\n"
-            "1. If user says 'for a year' ('за год'), 'for a month' ('за месяц'), 'for a week' ('за неделю'), "
-            "it means from TODAY back to the past (e.g., today is 2026-04-08, so 'for a year' is 2025-04-08 to 2026-04-08).\n"
-            "2. Only use calendar years (like 01.01 to 31.12) if the user explicitly specifies a year (e.g., 'for 2025').\n"
-            "3. If no specific period is mentioned, use the last 30 days.\n\n"
-            "CATEGORY RULES:\n"
-            "Map query to relevant categories from the available list. Support multiple categories.\n"
-            "Respond ONLY in JSON:\n"
-            '{"action": "stats" | "categories" | "unknown", "start_date": "YYYY-MM-DD", "end_date": "YYYY-MM-DD", "categories": ["string"]}'
+        system_prompt = INTENT_PARSER_SYSTEM_PROMPT.format(
+            current_date=current_date,
+            categories=cats_str
         )
         
         response = await self._ask_llm(system_prompt, f"User message: '{text}'")
@@ -65,15 +61,36 @@ class AIService:
             return {"action": "unknown", "start_date": None, "end_date": None, "categories": []}
 
     async def analyze_spending(self, summary_text: str, user_memories: list = None) -> str:
-        memories_str = "\n".join(user_memories) if user_memories else "No previous records."
-        system_prompt = (
-            "You are a professional financial assistant. Analyze the report and give advice.\n"
-            "IMPORTANT: Respond in RUSSIAN. Do NOT use emojis. Professional tone."
-        )
-        advice = await self._ask_llm(system_prompt, f"Report:\n{summary_text}\n\nHistory:\n{memories_str}")
+        memories_context = ""
+        if user_memories and len(user_memories) > 0:
+            memories_context = (
+                "HISTORICAL CONTEXT (previous insights about user):\n"
+                + "\n".join([f"- {mem}" for mem in user_memories])
+                + "\n\n"
+            )
+        
+        user_prompt = f"{memories_context}CURRENT REPORT:\n{summary_text}"
+        
+        advice = await self._ask_llm(SPENDING_ANALYSIS_SYSTEM_PROMPT, user_prompt)
         return advice or "Не удалось получить совет от ИИ."
 
     async def extract_insight(self, summary_text: str) -> str:
-        system_prompt = "Find ONE key behavioral fact from the report. ONE sentence in English. No emojis."
-        insight = await self._ask_llm(system_prompt, f"Report:\n{summary_text}")
+        insight = await self._ask_llm(INSIGHT_EXTRACTION_SYSTEM_PROMPT, f"Report:\n{summary_text}")
         return insight.strip() if insight else None
+
+    async def ask_with_context(self, user_id: int, query: str, vector_service) -> str:
+
+        relevant_memories = await vector_service.get_relevant_memories(user_id, query, limit=5)
+        
+        context = ""
+        if relevant_memories and len(relevant_memories) > 0:
+            context = (
+                "USER HISTORY CONTEXT:\n"
+                + "\n".join([f"- {mem}" for mem in relevant_memories])
+                + "\n\n"
+            )
+        
+        user_prompt = f"{context}USER QUESTION:\n{query}"
+        
+        response = await self._ask_llm(RAG_QUERY_SYSTEM_PROMPT, user_prompt)
+        return response or "Не удалось получить ответ от ИИ."
