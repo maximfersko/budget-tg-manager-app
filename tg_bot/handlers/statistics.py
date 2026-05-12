@@ -40,6 +40,8 @@ async def stats_logic(message: Message, repo: DBRepository, start_date: datetime
     ai_service = AIService()
     vector_service = VectorService()
 
+    start_date, end_date = StatisticsService._resolve_dates(start_date, end_date)
+
     base_stats = await stat_service.get_base_stat(repo, message.from_user.id, start_date, end_date,
                                                   categories=categories)
 
@@ -47,9 +49,10 @@ async def stats_logic(message: Message, repo: DBRepository, start_date: datetime
 
     operations: list[Operation] = await repo.get_user_operations(message.from_user.id)
     df_date_filtered = stat_service._filter_statistics_date(operations, start_date, end_date)
+    df_for_ai = stat_service._filter_internal_transfers(df_date_filtered)
     logger.info(f"Filtered stats: {df_date_filtered}")
 
-    summary_text = stat_service.get_summary_for_ai(base_stats, df_date_filtered, is_category_filter=bool(categories))
+    summary_text = stat_service.get_summary_for_ai(base_stats, df_for_ai, is_category_filter=bool(categories))
     if categories:
         summary_text = f"FILTER BY CATEGORIES: {', '.join(categories)}\n" + summary_text
 
@@ -60,15 +63,15 @@ async def stats_logic(message: Message, repo: DBRepository, start_date: datetime
         user_id=message.from_user.id,
         summary_text=summary_text,
         metadata={
-            "start_date": start_date.isoformat() if start_date else None,
-            "end_date": end_date.isoformat() if end_date else None,
+            "start_date": start_date.isoformat(),
+            "end_date": end_date.isoformat(),
             "categories": categories,
             "type": "period_summary"
         }
     )
 
     clean_advice = ai_advice.replace("_", "\\_").replace("*", "\\*").replace("`", "\\`")
-    period_str = f" ({start_date.strftime('%d.%m.%Y')} - {end_date.strftime('%d.%m.%Y')})" if start_date else ""
+    period_str = f" ({start_date.strftime('%d.%m.%Y')} - {end_date.strftime('%d.%m.%Y')})"
     cat_str = f" по категориям: {', '.join(categories)}" if categories else ""
 
     if categories:
@@ -128,7 +131,8 @@ async def handle_ai_command(message: Message, repo: DBRepository, command: Comma
             logger.error(f"Error executing AI intent: {e}")
             await message.answer("Не удалось обработать запрос.")
     else:
-        response = await ai_service.analyze_spending(f"User query: {command.args}", user_memories=[])
+        vector_service = VectorService()
+        response = await ai_service.ask_with_context(message.from_user.id, command.args, vector_service)
         await message.answer(f"Ответ ИИ:\n\n{response}")
 
 

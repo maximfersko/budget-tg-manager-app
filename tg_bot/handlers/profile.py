@@ -54,7 +54,8 @@ async def help_command(message: Message, is_admin: bool, is_moderator: bool):
         "/help - This help message\n\n"
         "Finance:\n"
         "/incomes - Upload bank statement\n"
-        "/statistics - View statistics\n"
+        "/stats - View statistics\n"
+        "/categories - Top expense/income categories\n"
         "/ai <query> - Ask AI about your budget\n"
     )
 
