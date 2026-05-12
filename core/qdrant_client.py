@@ -8,6 +8,7 @@ class QdrantManager:
         self.host = QDRANT_HOST
         self.port = QDRANT_PORT
         self.client = QdrantClient(url=f"http://{self.host}:{self.port}")
+        self.client.set_model("intfloat/multilingual-e5-small")
         self.collection_name = "user_memories"
         self._init_collection()
 

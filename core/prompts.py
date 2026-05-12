@@ -70,18 +70,18 @@ REQUIREMENTS:
 - ONE sentence only (max 20 words)
 - Focus on: spending patterns, behavioral trends, or financial habits
 - Be specific and measurable
-- Use English language
+- Use Russian language
 - No emojis or special characters
 
 GOOD EXAMPLES:
-- "User spends 35% of income on dining out, significantly above recommended 10-15%"
-- "Consistent overspending on weekends, averaging 40% more than weekdays"
-- "Transportation costs increased 25% compared to previous period"
+- "Пользователь тратит 35% дохода на рестораны, что значительно выше рекомендованных 10-15%"
+- "Перерасход в выходные дни в среднем на 40% выше, чем в будни"
+- "Расходы на транспорт выросли на 25% по сравнению с предыдущим периодом"
 
 BAD EXAMPLES:
-- "User needs to save more money" (too vague)
-- "Spending is high" (not specific)
-- "Good financial behavior overall" (not actionable)
+- "Пользователю нужно больше экономить" (слишком расплывчато)
+- "Расходы высокие" (без конкретики)
+- "В целом хорошее финансовое поведение" (не содержит действий)
 
 OUTPUT: Single sentence insight only.
 """
