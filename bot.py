@@ -5,6 +5,7 @@ from aiogram import Bot, Dispatcher
 from core.config import BOT_TOKEN
 from core.logger import logger
 from core.minio_client import minio_client
+from core.qdrant_client import ensure_collection
 from core.redis_client import redis_client
 from database.engine import create_db
 from tg_bot.handlers.admin import router as admin_router
@@ -20,6 +21,7 @@ async def main():
     await create_db()
     await redis_client.connect()
     minio_client.connect()
+    await ensure_collection()
 
     bot = Bot(token=BOT_TOKEN)
     dp = Dispatcher()

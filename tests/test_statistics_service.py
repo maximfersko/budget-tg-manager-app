@@ -638,56 +638,51 @@ class TestStatisticsServiceGetSummaryForAI:
     async def test_summary_for_ai_with_data(
         self, repo: DBRepository, test_user: User, test_operations: list[Operation], mock_internal_keywords
     ):
-        """Test AI summary generation with data."""
         service = StatisticsService()
-        
+
         stats = await service.get_base_stat(
-            repo=repo,
-            user_id=test_user.tg_id,
-            start_date=datetime(2026, 4, 1),
-            end_date=datetime(2026, 4, 30)
+            repo=repo, user_id=test_user.tg_id,
+            start_date=datetime(2026, 4, 1), end_date=datetime(2026, 4, 30)
         )
-        
-        operations = await repo.get_user_operations(test_user.tg_id)
-        df = service._filter_statistics_date(operations, datetime(2026, 4, 1), datetime(2026, 4, 30))
-        
-        summary = service.get_summary_for_ai(stats, df, is_category_filter=False)
-        
+        cat_stats = await service.get_categories_stat(
+            repo=repo, user_id=test_user.tg_id,
+            start_date=datetime(2026, 4, 1), end_date=datetime(2026, 4, 30)
+        )
+
+        summary = service.get_summary_for_ai(stats, cat_stats, is_category_filter=False)
+
         assert "Exp:" in summary
         assert "Bal:" in summary
         assert "Salary:" in summary
         assert "Top:" in summary
-    
+
     @pytest.mark.asyncio
     async def test_summary_for_ai_with_category_filter(
         self, repo: DBRepository, test_user: User, test_operations: list[Operation], mock_internal_keywords
     ):
-        """Test AI summary with category filter flag."""
         service = StatisticsService()
-        
+
         stats = await service.get_base_stat(
-            repo=repo,
-            user_id=test_user.tg_id,
-            start_date=datetime(2026, 4, 1),
-            end_date=datetime(2026, 4, 30),
+            repo=repo, user_id=test_user.tg_id,
+            start_date=datetime(2026, 4, 1), end_date=datetime(2026, 4, 30),
             categories=["Продукты"]
         )
-        
-        operations = await repo.get_user_operations(test_user.tg_id)
-        df = service._filter_statistics_date(operations, datetime(2026, 4, 1), datetime(2026, 4, 30))
-        
-        summary = service.get_summary_for_ai(stats, df, is_category_filter=True)
-        
+        cat_stats = await service.get_categories_stat(
+            repo=repo, user_id=test_user.tg_id,
+            start_date=datetime(2026, 4, 1), end_date=datetime(2026, 4, 30)
+        )
+
+        summary = service.get_summary_for_ai(stats, cat_stats, is_category_filter=True)
+
         assert "Income/Refunds:" in summary
-        assert "Bal:" not in summary  # Balance not shown for category filter
-        assert "Salary:" not in summary  # Salary not shown for category filter
-    
+        assert "Bal:" not in summary
+        assert "Salary:" not in summary
+
     def test_summary_for_ai_empty_data(self):
-        """Test AI summary with empty data."""
         service = StatisticsService()
-        
-        summary = service.get_summary_for_ai({}, pd.DataFrame(), is_category_filter=False)
-        
+
+        summary = service.get_summary_for_ai({}, {}, is_category_filter=False)
+
         assert summary == "No data."
 
 
