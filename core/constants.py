@@ -1,11 +1,13 @@
 REDIS_KEY_USER_VERSION = "user:{user_id}:version"
+REDIS_KEY_USER_ROLES = "user:{user_id}:roles"
 REDIS_KEY_STATS_BASE = "stats:{user_id}:base"
 REDIS_KEY_STATS_CATEGORIES = "stats:{user_id}:categories"
 REDIS_KEY_FILE_HASH = "file:hash:{hash}"
 REDIS_KEY_LAST_FILE_UPLOAD = "user:{user_id}:last_upload"
 
-CACHE_TTL_STATS = 86400  # 24 hours
-CACHE_TTL_CATEGORIES = 86400  # 24 hours
+CACHE_TTL_STATS = 86400
+CACHE_TTL_CATEGORIES = 86400
+CACHE_TTL_USER_ROLES = 300
 CACHE_TTL_FILE_HASH = 1209600  # 14 days
 
 MAX_FILE_SIZE_MB = 50

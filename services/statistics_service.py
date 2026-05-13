@@ -7,7 +7,7 @@ import pandas as pd
 from sqlalchemy import BigInteger
 
 from core import config
-from core.constants import REDIS_KEY_USER_VERSION, CACHE_TTL_STATS
+from core.constants import REDIS_KEY_USER_VERSION, CACHE_TTL_STATS, CACHE_TTL_CATEGORIES
 from core.logger import logger
 from core.redis_client import redis_client
 from database.models import Operation
@@ -236,7 +236,7 @@ class StatisticsService:
             },
         }
 
-        await redis_client.set(cache_key, json.dumps(result), expire=CACHE_TTL_STATS)
+        await redis_client.set(cache_key, json.dumps(result), expire=CACHE_TTL_CATEGORIES)
         return result
 
     def get_summary_for_ai(

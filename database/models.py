@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, BigInteger, Float, Boolean, DateTime, ForeignKey, func, Enum, Table
+from sqlalchemy import Column, Integer, String, BigInteger, Float, Boolean, DateTime, ForeignKey, func, Enum, Table, Index
 from sqlalchemy.orm import relationship
 import enum
 
@@ -80,6 +80,9 @@ class Category(Base):
 
 class Operation(Base):
     __tablename__ = "operations"
+    __table_args__ = (
+        Index('ix_operations_user_date', 'user_id', 'date'),
+    )
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(BigInteger, ForeignKey("users.tg_id", ondelete="CASCADE"), nullable=False)

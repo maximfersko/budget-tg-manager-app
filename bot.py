@@ -66,7 +66,7 @@ async def init_first_admin():
         elif user and user.is_admin():
             logger.info(f"User {FIRST_ADMIN_ID} is already admin")
         else:
-            logger.info(f"Admin user {FIRST_ADMIN_ID} not found yet")
+            logger.warning(f"Admin user {FIRST_ADMIN_ID} not registered yet — will be granted admin on /start")
 
 
 if __name__ == '__main__':

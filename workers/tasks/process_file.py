@@ -58,12 +58,6 @@ def process_file(self, file_id: str, user_info: dict, file_name: str, bank_code:
 
             async with worker_session() as session:
                 repo = DBRepository(session)
-                await repo.add_user(
-                    tg_id=user_dto.user_id,
-                    first_name=user_dto.first_name,
-                    last_name=user_dto.last_name,
-                    username=user_dto.username,
-                )
                 result = await repo.add_operations_batch(user_id, operations, bank_code)
 
             version_key = REDIS_KEY_USER_VERSION.format(user_id=user_id)
@@ -75,11 +69,9 @@ def process_file(self, file_id: str, user_info: dict, file_name: str, bank_code:
 
             logger.info(f"Database update result: {result}")
 
-            timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-            s3_key = (
-                f"uploads/{user_id}/{datetime.utcnow().year}/"
-                f"{datetime.utcnow().month:02d}/{timestamp}_{file_name}"
-            )
+            now = datetime.utcnow()
+            timestamp = now.strftime("%Y%m%d_%H%M%S")
+            s3_key = f"uploads/{user_id}/{now.year}/{now.month:02d}/{timestamp}_{file_name}"
             minio_cli = minio_client.get_client()
             minio_cli.fput_object(
                 bucket_name=MINIO_BUCKET,

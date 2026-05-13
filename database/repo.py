@@ -4,7 +4,19 @@ from typing import List, Dict, Optional
 from sqlalchemy import select, func, distinct
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from core.constants import REDIS_KEY_USER_ROLES
 from database.models import User, Operation, Category
+
+
+def _invalidate_user_roles_cache(tg_id: int):
+    from core.redis_client import redis_client
+    import asyncio
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            loop.create_task(redis_client.delete(REDIS_KEY_USER_ROLES.format(user_id=tg_id)))
+    except Exception:
+        pass
 
 
 class DBRepository:
@@ -15,6 +27,11 @@ class DBRepository:
     async def get_user_by_tg_id(self, tg_id: int) -> Optional[User]:
         from sqlalchemy.orm import selectinload
         stmt = select(User).options(selectinload(User.roles)).where(User.tg_id == tg_id)
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def get_user_simple(self, tg_id: int) -> Optional[User]:
+        stmt = select(User).where(User.tg_id == tg_id)
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
@@ -194,6 +211,7 @@ class DBRepository:
         if role not in user.roles:
             user.roles.append(role)
             await self.session.commit()
+        await self._invalidate_roles_cache(tg_id)
         return True
 
     async def remove_role_from_user(self, tg_id: int, role_name: str) -> bool:
@@ -204,6 +222,7 @@ class DBRepository:
         if role and role in user.roles:
             user.roles.remove(role)
             await self.session.commit()
+        await self._invalidate_roles_cache(tg_id)
         return True
 
     async def get_user_roles(self, tg_id: int) -> List[str]:
@@ -219,6 +238,7 @@ class DBRepository:
         user.is_banned = True
         user.is_active = False
         await self.session.commit()
+        await self._invalidate_roles_cache(tg_id)
         return True
 
     async def unban_user(self, tg_id: int) -> bool:
@@ -228,6 +248,7 @@ class DBRepository:
         user.is_banned = False
         user.is_active = True
         await self.session.commit()
+        await self._invalidate_roles_cache(tg_id)
         return True
 
     async def get_all_admins(self) -> List[User]:
@@ -235,3 +256,8 @@ class DBRepository:
         stmt = select(User).join(user_roles).join(Role).where(Role.name == UserRole.ADMIN)
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
+
+    @staticmethod
+    async def _invalidate_roles_cache(tg_id: int) -> None:
+        from core.redis_client import redis_client
+        await redis_client.delete(REDIS_KEY_USER_ROLES.format(user_id=tg_id))
