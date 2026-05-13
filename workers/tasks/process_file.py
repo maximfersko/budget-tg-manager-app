@@ -28,14 +28,12 @@ def process_file(self, file_id: str, user_info: dict, file_name: str, bank_code:
 
         try:
             worker_session = get_async_session_maker()
-
             user_dto = UserDto(**user_info)
             user_id = user_dto.user_id
 
             logger.info(f"Processing file {file_name} for user {user_id}, bank: {bank_code}")
 
             bot = Bot(token=BOT_TOKEN)
-
             file_extension = file_name.lower().split('.')[-1]
             file_path = f"/tmp/incomes_{user_id}_{file_id}.{file_extension}"
 
@@ -44,11 +42,10 @@ def process_file(self, file_id: str, user_info: dict, file_name: str, bank_code:
             await bot.download_file(file_info.file_path, destination=file_path)
 
             f_hash = file_service.calculate_hash(file_path)
-            cache_key = f'file:hash:{f_hash}'
-
             redis_cli = Redis.from_url(REDIS_URL, decode_responses=True)
-            if await redis_cli.exists(cache_key):
-                raise FileExistsError(f'File {file_name} already uploaded')
+
+            if await redis_cli.exists(f'file:hash:{f_hash}'):
+                return {"status": "duplicate", "error": "Файл уже был загружен ранее"}
 
             if bank_code == "tinkoff":
                 parser = TinkoffBankCSVParser()
@@ -65,54 +62,54 @@ def process_file(self, file_id: str, user_info: dict, file_name: str, bank_code:
                     tg_id=user_dto.user_id,
                     first_name=user_dto.first_name,
                     last_name=user_dto.last_name,
-                    username=user_dto.username
+                    username=user_dto.username,
                 )
                 result = await repo.add_operations_batch(user_id, operations, bank_code)
 
             version_key = REDIS_KEY_USER_VERSION.format(user_id=user_id)
-            new_version = await redis_cli.incr(version_key)
+            await redis_cli.incr(version_key)
 
-            stats_pattern = f"stats:{user_id}:*"
-            keys_to_delete = await redis_cli.keys(stats_pattern)
+            keys_to_delete = await redis_cli.keys(f"stats:{user_id}:*")
             if keys_to_delete:
                 await redis_cli.delete(*keys_to_delete)
 
             logger.info(f"Database update result: {result}")
 
             timestamp = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
-            s3_key = f"uploads/{user_id}/{datetime.utcnow().year}/{datetime.utcnow().month:02d}/{timestamp}_{file_name}"
-
+            s3_key = (
+                f"uploads/{user_id}/{datetime.utcnow().year}/"
+                f"{datetime.utcnow().month:02d}/{timestamp}_{file_name}"
+            )
             minio_cli = minio_client.get_client()
             minio_cli.fput_object(
                 bucket_name=MINIO_BUCKET,
                 object_name=s3_key,
                 file_path=file_path,
-                content_type="application/pdf" if file_extension == "pdf" else "text/csv"
+                content_type="text/csv",
             )
 
-            await redis_cli.setex(cache_key, 1209600, str(user_id))
-
-            if os.path.exists(file_path):
-                os.remove(file_path)
+            await redis_cli.setex(f'file:hash:{f_hash}', 1209600, str(user_id))
 
             return {
                 "status": "success",
                 "added": result['added'],
                 "duplicates": result['duplicates'],
-                "s3_key": s3_key
+                "s3_key": s3_key,
             }
 
         except Exception as e:
             logger.error(f"Error processing file: {e}")
             if self.request.retries >= self.max_retries:
-                if file_path and os.path.exists(file_path):
-                    os.remove(file_path)
                 return {"status": "failed", "error": str(e)}
             raise self.retry(exc=e, countdown=60 * (2 ** self.request.retries))
 
         finally:
-            if redis_cli: await redis_cli.aclose()
-            if bot: await bot.session.close()
+            if file_path and os.path.exists(file_path):
+                os.remove(file_path)
+            if redis_cli:
+                await redis_cli.aclose()
+            if bot:
+                await bot.session.close()
 
     try:
         result = asyncio.run(_process())

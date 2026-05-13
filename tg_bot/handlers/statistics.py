@@ -5,7 +5,7 @@ from aiogram.filters import Command, CommandObject
 from aiogram.types import Message
 
 from core.logger import logger
-from database.models import Operation
+from core.redis_client import redis_client
 from database.repo import DBRepository
 from services.ai_service import AIService
 from services.statistics_service import StatisticsService
@@ -13,6 +13,8 @@ from services.vector_service import VectorService
 from workers.tasks.ai_tasks import process_ai_insight_task
 
 router = Router(name="statistics_handler")
+
+_STATS_COOLDOWN_SEC = 15
 
 
 def _parse_date_from_mess_args(command: CommandObject) -> (datetime, datetime):
@@ -32,27 +34,41 @@ def _parse_date_from_mess_args(command: CommandObject) -> (datetime, datetime):
     return start_date, end_date
 
 
-async def stats_logic(message: Message, repo: DBRepository, start_date: datetime, end_date: datetime,
-                      categories: list = None):
+async def _is_rate_limited(user_id: int) -> bool:
+    key = f"cooldown:stats:{user_id}"
+    if await redis_client.get(key):
+        return True
+    await redis_client.set(key, "1", expire=_STATS_COOLDOWN_SEC)
+    return False
+
+
+async def stats_logic(
+    message: Message,
+    repo: DBRepository,
+    start_date: datetime,
+    end_date: datetime,
+    categories: list = None,
+):
     logger.info(
-        f"Stats handler started for {message.chat.id}: args - {message.text}, {start_date}, {end_date}, {categories}")
+        f"Stats handler started for {message.chat.id}: {message.text}, {start_date}, {end_date}, {categories}"
+    )
+
     stat_service = StatisticsService()
     ai_service = AIService()
     vector_service = VectorService()
 
-    start_date, end_date = StatisticsService._resolve_dates(start_date, end_date)
+    start_date, end_date = await stat_service.resolve_effective_dates(
+        repo, message.from_user.id, start_date, end_date
+    )
 
-    base_stats = await stat_service.get_base_stat(repo, message.from_user.id, start_date, end_date,
-                                                  categories=categories)
+    base_stats = await stat_service.get_base_stat(
+        repo, message.from_user.id, start_date, end_date, categories=categories
+    )
+    cat_stats = await stat_service.get_categories_stat(repo, message.from_user.id, start_date, end_date)
 
     logger.info(f"Base stats: {base_stats}")
 
-    operations: list[Operation] = await repo.get_user_operations(message.from_user.id)
-    df_date_filtered = stat_service._filter_statistics_date(operations, start_date, end_date)
-    df_for_ai = stat_service._filter_internal_transfers(df_date_filtered)
-    logger.info(f"Filtered stats: {df_date_filtered}")
-
-    summary_text = stat_service.get_summary_for_ai(base_stats, df_for_ai, is_category_filter=bool(categories))
+    summary_text = stat_service.get_summary_for_ai(base_stats, cat_stats, is_category_filter=bool(categories))
     if categories:
         summary_text = f"FILTER BY CATEGORIES: {', '.join(categories)}\n" + summary_text
 
@@ -66,8 +82,8 @@ async def stats_logic(message: Message, repo: DBRepository, start_date: datetime
             "start_date": start_date.isoformat(),
             "end_date": end_date.isoformat(),
             "categories": categories,
-            "type": "period_summary"
-        }
+            "type": "period_summary",
+        },
     )
 
     clean_advice = ai_advice.replace("_", "\\_").replace("*", "\\*").replace("`", "\\`")
@@ -111,10 +127,11 @@ async def handle_ai_command(message: Message, repo: DBRepository, command: Comma
     if not command.args:
         return await message.answer("Напиши запрос после /ai. Пример: /ai статистика за неделю")
 
+    if await _is_rate_limited(message.from_user.id):
+        return await message.answer("Подожди немного перед следующим запросом.")
+
     ai_service = AIService()
-
     user_categories = await repo.get_unique_raw_categories(message.from_user.id)
-
     intent = await ai_service.parse_user_intent(command.args, categories=user_categories)
 
     logger.info(f"AI Intent: {intent}")
@@ -125,7 +142,6 @@ async def handle_ai_command(message: Message, repo: DBRepository, command: Comma
             end_date = datetime.strptime(intent["end_date"], "%Y-%m-%d") if intent["end_date"] else None
             if end_date:
                 end_date = end_date.replace(hour=23, minute=59, second=59)
-
             await stats_logic(message, repo, start_date, end_date, categories=intent.get("categories"))
         except Exception as e:
             logger.error(f"Error executing AI intent: {e}")
@@ -138,39 +154,13 @@ async def handle_ai_command(message: Message, repo: DBRepository, command: Comma
 
 @router.message(Command("stats"))
 async def stats(message: Message, repo: DBRepository, command: CommandObject):
+    if await _is_rate_limited(message.from_user.id):
+        return await message.answer("Подожди немного перед следующим запросом.")
     start_date, end_date = _parse_date_from_mess_args(command)
     if command.args and (start_date is None or end_date is None):
         await message.answer("Формат: DD.MM.YYYY-DD.MM.YYYY")
         return
     await stats_logic(message, repo, start_date, end_date)
-
-
-@router.message(Command("stats_simple"))
-async def stats_simple(message: Message, repo: DBRepository, command: CommandObject):
-    start_date, end_date = _parse_date_from_mess_args(command)
-    if command.args and (start_date is None or end_date is None):
-        await message.answer("Формат: DD.MM.YYYY-DD.MM.YYYY")
-        return
-    
-    stat_service = StatisticsService()
-    base_stats = await stat_service.get_base_stat(repo, message.from_user.id, start_date, end_date)
-    
-    period_str = f" ({start_date.strftime('%d.%m.%Y')} - {end_date.strftime('%d.%m.%Y')})" if start_date else ""
-    
-    response = (
-        f"СТАТИСТИКА{period_str}\n\n"
-        f"Зарплата: {base_stats['salary']} RUB\n"
-        f"Доходы: {base_stats['sum_income']} RUB\n"
-        f"Расходы: {base_stats['sum_expense']} RUB\n"
-        f"Баланс: {base_stats['balance']} RUB\n"
-        f"Средний расход: {base_stats['avg_expense']} RUB\n\n"
-        f"Транзакций: {base_stats['transactions_count']}\n"
-        f"Доходов: {base_stats['income_count']}\n"
-        f"Расходов: {base_stats['expense_count']}\n"
-        f"Исключено внутренних переводов: {base_stats['internal_transfers_excluded']}"
-    )
-    
-    await message.answer(response)
 
 
 @router.message(Command("categories"))

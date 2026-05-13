@@ -14,17 +14,20 @@ def notify_user_file_processed(self, user_id: int, result: dict) -> dict:
         bot = Bot(token=BOT_TOKEN)
         
         try:
-            if result.get("status") == "success":
+            status = result.get("status")
+            if status == "success":
                 message = (
-                    f"File processed successfully!\n\n"
-                    f"Added operations: {result['added']}\n"
-                    f"Duplicates skipped: {result['duplicates']}\n"
-                    f"Stored in: {result['s3_key']}"
+                    f"Файл обработан успешно!\n\n"
+                    f"Добавлено операций: {result['added']}\n"
+                    f"Пропущено дублей: {result['duplicates']}\n"
+                    f"Сохранено в: {result['s3_key']}"
                 )
+            elif status == "duplicate":
+                message = "Этот файл уже был загружен ранее."
             else:
                 message = (
-                    f"File processing failed\n\n"
-                    f"Error: {result.get('error', 'Unknown error')}"
+                    f"Ошибка обработки файла\n\n"
+                    f"Причина: {result.get('error', 'Неизвестная ошибка')}"
                 )
             
             await bot.send_message(chat_id=user_id, text=message)
